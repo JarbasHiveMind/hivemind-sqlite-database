@@ -8,15 +8,20 @@ from ovos_utils.xdg_utils import xdg_data_home
 
 from hivemind_plugin_manager.database import Client, AbstractDB
 
+from dataclasses import dataclass
 
+
+@dataclass
 class SQLiteDB(AbstractDB):
     """Database implementation using SQLite."""
+    name: str = "clients"
+    subfolder: str = "hivemind-core"
 
-    def __init__(self, name="clients", subfolder="hivemind-core"):
+    def __post_init__(self):
         """
         Initialize the SQLiteDB connection.
         """
-        db_path = os.path.join(xdg_data_home(), subfolder, name + ".db")
+        db_path = os.path.join(xdg_data_home(), self.subfolder, self.name + ".db")
         LOG.debug(f"sqlite database path: {db_path}")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
