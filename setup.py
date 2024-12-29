@@ -48,7 +48,7 @@ setup(
     url='https://github.com/JarbasHiveMind/hivemind-sqlite-database',
     license='Apache-2.0',
     author='jarbasAi',
-    # install_requires=required("requirements.txt"),
+    install_requires=required("requirements.txt"),
     entry_points={'hivemind.database': PLUGIN_ENTRY_POINT},
     author_email='jarbasai@mailfence.com',
     description='sqlite database plugin for hivemind-core'
