@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.3a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.3a1) (2024-12-29)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.2a1...0.0.3a1)
+
+**Merged pull requests:**
+
+- fix: move to dataclass + requirements.txt [\#5](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/5) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.0.2a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.2a1) (2024-12-29)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.1...0.0.2a1)
