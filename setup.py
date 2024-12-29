@@ -39,6 +39,7 @@ def required(requirements_file):
                 if pkg.strip() and not pkg.startswith("#")]
 
 
+PLUGIN_ENTRY_POINT = 'hivemind-sqlite-db-plugin=hivemind_sqlite_database:SQLiteDB'
 
 setup(
     name='hivemind-sqlite-database',
@@ -48,6 +49,7 @@ setup(
     license='Apache-2.0',
     author='jarbasAi',
     # install_requires=required("requirements.txt"),
+    entry_points={'hivemind.database': PLUGIN_ENTRY_POINT},
     author_email='jarbasai@mailfence.com',
     description='sqlite database plugin for hivemind-core'
 )
