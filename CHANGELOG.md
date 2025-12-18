@@ -1,20 +1,12 @@
 # Changelog
 
-## [0.0.3a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.3a1) (2024-12-29)
+## [0.0.4a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.4a1) (2025-12-18)
 
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.2a1...0.0.3a1)
-
-**Merged pull requests:**
-
-- fix: move to dataclass + requirements.txt [\#5](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/5) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.0.2a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.2a1) (2024-12-29)
-
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.1...0.0.2a1)
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.3...0.0.4a1)
 
 **Merged pull requests:**
 
-- fix: missing hivemind entrypoint in setup.py [\#3](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/3) ([JarbasAl](https://github.com/JarbasAl))
+- chore: Configure Renovate [\#7](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/7) ([renovate[bot]](https://github.com/apps/renovate))
 
 
 
