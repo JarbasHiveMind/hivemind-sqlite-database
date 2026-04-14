@@ -142,7 +142,7 @@ class SQLiteDB(AbstractDB):
             api_key=row["api_key"],
             name=row["name"],
             description=row["description"],
-            is_admin=row["is_admin"] or False,
+            is_admin=bool(row["is_admin"]),
             last_seen=row["last_seen"],
             intent_blacklist=json.loads(row["intent_blacklist"] or "[]"),
             skill_blacklist=json.loads(row["skill_blacklist"] or "[]"),
@@ -150,7 +150,7 @@ class SQLiteDB(AbstractDB):
             allowed_types=json.loads(row["allowed_types"] or "[]"),
             crypto_key=row["crypto_key"],
             password=row["password"],
-            can_broadcast=row["can_broadcast"],
-            can_escalate=row["can_escalate"],
-            can_propagate=row["can_propagate"]
+            can_broadcast=bool(row["can_broadcast"]),
+            can_escalate=bool(row["can_escalate"]),
+            can_propagate=bool(row["can_propagate"])
         )
