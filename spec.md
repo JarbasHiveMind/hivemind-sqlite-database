@@ -43,6 +43,6 @@ Bring `hivemind-sqlite-database` to a stable `0.1.0` release. The plugin already
 - [ ] A test asserts that `len(db) == 0` on a fresh DB and increments correctly after `add_item`.
 - [ ] A test asserts that `list(db)` yields all rows including revoked ones.
 - [ ] A test asserts `add_item` returns `False` when a simulated `sqlite3.Error` is raised (mock or force an error).
-- [ ] `version.py` has `VERSION_BUILD = 1`, `VERSION_MINOR = 0` (or equivalent `0.1.0` string).
+- [ ] `version.py` has `VERSION_MINOR = 1`, `VERSION_BUILD = 0` (i.e., `0.1.0`).
 - [ ] GitHub Actions workflow file exists at `.github/workflows/` and references `pytest`.
 - [ ] The WAL pragma is confirmed active: a test opens an in-memory DB and asserts `PRAGMA journal_mode` returns `"wal"` — or at minimum the `__post_init__` code contains the pragma call.

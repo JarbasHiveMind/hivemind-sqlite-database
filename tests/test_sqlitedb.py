@@ -16,7 +16,6 @@ def make_db() -> SQLiteDB:
     db = object.__new__(SQLiteDB)
     db.name = "clients"
     db.subfolder = "hivemind-core"
-    db.password = None
     db.conn = sqlite3.connect(":memory:", check_same_thread=False)
     db.conn.row_factory = sqlite3.Row
     db.conn.execute("PRAGMA journal_mode=WAL")
