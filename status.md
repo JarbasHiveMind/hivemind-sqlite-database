@@ -2,6 +2,6 @@
 
 - [x] Fix thread-safety: add `check_same_thread=False` and WAL mode to `__post_init__`
 - [x] Create `tests/test_sqlitedb.py` — full pytest suite using `:memory:`
-- [ ] Bump version to `0.1.0` in `version.py`
+- [x] Bump version to `0.1.0` in `version.py`
 - [ ] Add `.gitignore`
 - [ ] Add GitHub Actions CI workflow (`.github/workflows/tests.yml`)
