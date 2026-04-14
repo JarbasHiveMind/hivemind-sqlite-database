@@ -10,6 +10,13 @@ from hivemind_plugin_manager.database import Client, AbstractDB
 
 from dataclasses import dataclass
 
+_VALID_COLUMNS = frozenset({
+    "client_id", "api_key", "name", "description", "is_admin",
+    "last_seen", "intent_blacklist", "skill_blacklist", "message_blacklist",
+    "allowed_types", "crypto_key", "password",
+    "can_broadcast", "can_escalate", "can_propagate",
+})
+
 
 @dataclass
 class SQLiteDB(AbstractDB):
@@ -100,6 +107,9 @@ class SQLiteDB(AbstractDB):
         Returns:
             A list of clients that match the search criteria.
         """
+        if key not in _VALID_COLUMNS:
+            LOG.error(f"Invalid search key: {key!r}")
+            return []
         try:
             with self.conn:
                 cur = self.conn.execute(f"SELECT * FROM clients WHERE {key} = ?", (val,))
@@ -111,8 +121,12 @@ class SQLiteDB(AbstractDB):
 
     def __len__(self) -> int:
         """Get the number of clients in the database."""
-        cur = self.conn.execute("SELECT COUNT(*) FROM clients")
-        return cur.fetchone()[0]
+        try:
+            cur = self.conn.execute("SELECT COUNT(*) FROM clients")
+            return cur.fetchone()[0]
+        except sqlite3.Error as e:
+            LOG.error(f"Failed to count clients in SQLite: {e}")
+            return 0
 
     def __iter__(self) -> Iterable['Client']:
         """

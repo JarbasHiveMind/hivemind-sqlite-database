@@ -70,6 +70,12 @@ class TestSQLiteDBLen(unittest.TestCase):
         db.delete_item(c)
         self.assertEqual(len(db), 1)
 
+    def test_len_returns_zero_on_error(self):
+        db = make_db()
+        db.add_item(make_client(1, "k1"))
+        db.conn.close()
+        self.assertEqual(len(db), 0)
+
 
 class TestSQLiteDBAddItem(unittest.TestCase):
     def test_add_returns_true_on_success(self):
@@ -166,6 +172,19 @@ class TestSQLiteDBSearchByValue(unittest.TestCase):
         db.add_item(make_client(1, "k1"))
         db.conn.close()
         results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results, [])
+
+    def test_search_rejects_invalid_column_name(self):
+        db = make_db()
+        db.add_item(make_client(1, "k1"))
+        results = db.search_by_value("1=1; DROP TABLE clients; --", "x")
+        self.assertEqual(results, [])
+        # table must still exist
+        self.assertEqual(len(db), 1)
+
+    def test_search_rejects_unknown_column(self):
+        db = make_db()
+        results = db.search_by_value("nonexistent_column", "value")
         self.assertEqual(results, [])
 
 
