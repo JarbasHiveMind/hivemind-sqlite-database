@@ -1,0 +1,34 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test-plain:
+    name: "SQLite (no encryption)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]" || pip install -e .
+      - run: pip install pytest
+      - run: pytest tests/test_sqlitedb.py -q -p no:ovoscope
+
+  test-cipher:
+    name: "SQLite + SQLCipher"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install sqlcipher system library
+        run: sudo apt-get install -y libsqlcipher0 libsqlcipher-dev
+      - run: pip install -e ".[cipher]" || pip install -e . && pip install sqlcipher3
+      - run: pip install pytest
+      - run: pytest tests/test_sqlitedb.py -q -p no:ovoscope
