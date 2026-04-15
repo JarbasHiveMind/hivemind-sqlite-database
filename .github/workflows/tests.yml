@@ -28,7 +28,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install sqlcipher system library
-        run: sudo apt-get install -y libsqlcipher-dev
-      - run: pip install -e ".[cipher]" || pip install -e . && pip install sqlcipher3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlcipher-dev
+      - run: pip install -e ".[cipher]"
       - run: pip install pytest
       - run: pytest tests/test_sqlitedb.py -q -p no:ovoscope
