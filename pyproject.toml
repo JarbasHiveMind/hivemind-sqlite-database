@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hivemind-sqlite-database"
+dynamic = ["version"]
+description = "sqlite database plugin for hivemind-core"
+license = { text = "Apache-2.0" }
+authors = [{ name = "jarbasAi", email = "jarbasai@mailfence.com" }]
+requires-python = ">=3.9"
+dependencies = [
+    "hivemind-plugin-manager>=0.1.0,<1.0.0",
+    "hivemind-bus-client",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/JarbasHiveMind/hivemind-sqlite-database"
+
+[project.entry-points."hivemind.database"]
+"hivemind-sqlite-db-plugin" = "hivemind_sqlite_database:SQLiteDB"
+
+[tool.setuptools.dynamic]
+version = {attr = "hivemind_sqlite_database.version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hivemind_sqlite_database*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

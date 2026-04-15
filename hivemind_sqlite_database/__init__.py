@@ -1,6 +1,7 @@
 import json
 import os.path
 import sqlite3
+import threading
 from typing import List, Union, Iterable
 
 from ovos_utils.log import LOG
@@ -9,6 +10,13 @@ from ovos_utils.xdg_utils import xdg_data_home
 from hivemind_plugin_manager.database import Client, AbstractDB
 
 from dataclasses import dataclass
+
+_VALID_COLUMNS = frozenset({
+    "client_id", "api_key", "name", "description", "is_admin",
+    "last_seen", "intent_blacklist", "skill_blacklist", "message_blacklist",
+    "allowed_types", "crypto_key", "password",
+    "can_broadcast", "can_escalate", "can_propagate",
+})
 
 
 @dataclass
@@ -25,8 +33,10 @@ class SQLiteDB(AbstractDB):
         LOG.debug(f"sqlite database path: {db_path}")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self._write_lock = threading.Lock()
         self._initialize_database()
 
     def _initialize_database(self):
@@ -65,7 +75,7 @@ class SQLiteDB(AbstractDB):
             True if the addition was successful, False otherwise.
         """
         try:
-            with self.conn:
+            with self._write_lock, self.conn:
                 self.conn.execute("""
                     INSERT OR REPLACE INTO clients (
                         client_id, api_key, name, description, is_admin,
@@ -99,6 +109,9 @@ class SQLiteDB(AbstractDB):
         Returns:
             A list of clients that match the search criteria.
         """
+        if key not in _VALID_COLUMNS:
+            LOG.error(f"Invalid search key: {key!r}")
+            return []
         try:
             with self.conn:
                 cur = self.conn.execute(f"SELECT * FROM clients WHERE {key} = ?", (val,))
@@ -110,8 +123,12 @@ class SQLiteDB(AbstractDB):
 
     def __len__(self) -> int:
         """Get the number of clients in the database."""
-        cur = self.conn.execute("SELECT COUNT(*) FROM clients")
-        return cur.fetchone()[0]
+        try:
+            cur = self.conn.execute("SELECT COUNT(*) FROM clients")
+            return cur.fetchone()[0]
+        except sqlite3.Error as e:
+            LOG.error(f"Failed to count clients in SQLite: {e}")
+            return 0
 
     def __iter__(self) -> Iterable['Client']:
         """
@@ -127,7 +144,8 @@ class SQLiteDB(AbstractDB):
     def commit(self) -> bool:
         """Commit changes to the SQLite database."""
         try:
-            self.conn.commit()
+            with self._write_lock:
+                self.conn.commit()
             return True
         except sqlite3.Error as e:
             LOG.error(f"Failed to commit SQLite database: {e}")
@@ -141,7 +159,7 @@ class SQLiteDB(AbstractDB):
             api_key=row["api_key"],
             name=row["name"],
             description=row["description"],
-            is_admin=row["is_admin"] or False,
+            is_admin=bool(row["is_admin"]),
             last_seen=row["last_seen"],
             intent_blacklist=json.loads(row["intent_blacklist"] or "[]"),
             skill_blacklist=json.loads(row["skill_blacklist"] or "[]"),
@@ -149,7 +167,7 @@ class SQLiteDB(AbstractDB):
             allowed_types=json.loads(row["allowed_types"] or "[]"),
             crypto_key=row["crypto_key"],
             password=row["password"],
-            can_broadcast=row["can_broadcast"],
-            can_escalate=row["can_escalate"],
-            can_propagate=row["can_propagate"]
+            can_broadcast=bool(row["can_broadcast"]),
+            can_escalate=bool(row["can_escalate"]),
+            can_propagate=bool(row["can_propagate"])
         )

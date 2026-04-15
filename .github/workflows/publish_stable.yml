@@ -6,12 +6,11 @@ on:
 
 jobs:
   publish_stable:
-    uses: TigreGotico/gh-automations/.github/workflows/publish-stable.yml@master
+    uses: OpenVoiceOS/gh-automations/.github/workflows/publish-stable.yml@dev
     secrets: inherit
     with:
       branch: 'master'
       version_file: 'hivemind_sqlite_database/version.py'
-      setup_py: 'setup.py'
       publish_release: true
 
   publish_pypi:
@@ -19,23 +18,25 @@ jobs:
     if: success()  # Ensure this job only runs if the previous job succeeds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: master
           fetch-depth: 0 # otherwise, there would be errors pushing refs to the destination repository.
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.8
+          python-version: "3.11"
       - name: Install Build Tools
         run: |
           python -m pip install build wheel
       - name: version
-        run: echo "::set-output name=version::$(python setup.py --version)"
         id: version
+        run: |
+          VERSION=$(python -c "from hivemind_sqlite_database.version import __version__; print(__version__)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Build Distribution Packages
         run: |
-          python setup.py sdist bdist_wheel
+          python -m build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@master
         with:
@@ -47,7 +48,7 @@ jobs:
     if: success()  # Ensure this job only runs if the previous job succeeds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # otherwise, there would be errors pushing refs to the destination repository.
           ref: master
