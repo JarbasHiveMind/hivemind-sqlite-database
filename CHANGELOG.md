@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.0a1) (2026-04-15)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.4a2...0.2.0a1)
+
+**Merged pull requests:**
+
+- feat: release 0.1.0 — tests, thread-safety, SQL injection fix [\#14](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/14) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.0.4a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.4a2) (2025-12-19)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.4a1...0.0.4a2)
