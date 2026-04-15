@@ -314,25 +314,16 @@ class TestSQLiteDBEncrypted(unittest.TestCase):
     """Tests for the SQLCipher-encrypted path.  Skipped when sqlcipher3 is absent."""
 
     def _make_encrypted_db(self, path: str, password: str = "hunter2") -> SQLiteDB:
+        import unittest.mock as mock
         db = SQLiteDB.__new__(SQLiteDB)
         db.name = os.path.splitext(os.path.basename(path))[0]
-        db.subfolder = os.path.dirname(path)
+        db.subfolder = ""
         db.password = password
-        # Monkey-patch xdg_data_home so the db lands at exactly *path*
-        import unittest.mock as mock
-        with mock.patch("hivemind_sqlite_database.xdg_data_home", return_value=""):
-            db.subfolder = ""
-            # Use __post_init__ directly with a tmp path via subfolder trick:
-            # rebuild with correct path pieces
-        # Simplest: call __post_init__ after setting internal path directly
-        import sqlcipher3 as _sc
-        db.conn = _sc.connect(path, check_same_thread=False)
-        db.conn.row_factory = _sc.Row
-        db.conn.execute(f"PRAGMA key='{password}'")
-        db.conn.execute("PRAGMA journal_mode=WAL")
-        import threading
-        db._write_lock = threading.Lock()
-        db._initialize_database()
+        with mock.patch(
+            "hivemind_sqlite_database.xdg_data_home",
+            return_value=os.path.dirname(path),
+        ):
+            db.__post_init__()
         return db
 
     def test_encrypted_file_unreadable_by_stdlib_sqlite3(self):
@@ -381,7 +372,6 @@ class TestSQLiteDBMissingCipher(unittest.TestCase):
 
     def test_importerror_when_sqlcipher3_missing(self):
         import sys
-        import importlib
         import unittest.mock as mock
 
         # Simulate sqlcipher3 not being installed

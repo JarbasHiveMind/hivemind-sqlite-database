@@ -42,18 +42,21 @@ class SQLiteDB(AbstractDB):
         LOG.debug(f"sqlite database path: {db_path}")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        if self.password:
+        if self.password is not None:
+            if self.password == "":
+                raise ValueError("password must be non-empty when encryption is enabled")
             try:
                 import sqlcipher3 as _sqlcipher
             except ImportError:
                 raise ImportError(
                     "sqlcipher3 is required to open an encrypted SQLite database. "
-                    "Install the system library (e.g. 'apt install libsqlcipher0') "
+                    "Install the system library (e.g. 'apt install libsqlcipher-dev') "
                     "then: pip install hivemind-sqlite-database[cipher]"
                 )
             self.conn = _sqlcipher.connect(db_path, check_same_thread=False)
             self.conn.row_factory = _sqlcipher.Row
-            self.conn.execute(f"PRAGMA key='{self.password}'")
+            escaped_password = self.password.replace("'", "''")
+            self.conn.execute(f"PRAGMA key='{escaped_password}'")
         else:
             self.conn = sqlite3.connect(db_path, check_same_thread=False)
             self.conn.row_factory = sqlite3.Row
