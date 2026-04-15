@@ -16,6 +16,9 @@ dependencies = [
 ]
 
 
+[project.optional-dependencies]
+cipher = ["sqlcipher3"]
+
 [project.urls]
 Homepage = "https://github.com/JarbasHiveMind/hivemind-sqlite-database"
 
