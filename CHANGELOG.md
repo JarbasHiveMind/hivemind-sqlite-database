@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a2) (2026-04-15)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1a1...0.2.1a2)
+
+**Merged pull requests:**
+
+- Update actions/setup-python action to v6 [\#15](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/15) ([renovate[bot]](https://github.com/apps/renovate))
+- Update actions/checkout action to v6 [\#9](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/9) ([renovate[bot]](https://github.com/apps/renovate))
+
 ## [0.2.1a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a1) (2026-04-15)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.0a1...0.2.1a1)
