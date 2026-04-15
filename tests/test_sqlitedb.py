@@ -4,6 +4,7 @@ No external services required.
 """
 import sqlite3
 import tempfile
+import threading
 import os
 import unittest
 
@@ -19,6 +20,7 @@ def make_db() -> SQLiteDB:
     db.conn = sqlite3.connect(":memory:", check_same_thread=False)
     db.conn.row_factory = sqlite3.Row
     db.conn.execute("PRAGMA journal_mode=WAL")
+    db._write_lock = threading.Lock()
     db._initialize_database()
     return db
 

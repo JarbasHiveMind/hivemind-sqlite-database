@@ -1,6 +1,7 @@
 import json
 import os.path
 import sqlite3
+import threading
 from typing import List, Union, Iterable
 
 from ovos_utils.log import LOG
@@ -35,6 +36,7 @@ class SQLiteDB(AbstractDB):
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
+        self._write_lock = threading.Lock()
         self._initialize_database()
 
     def _initialize_database(self):
@@ -73,7 +75,7 @@ class SQLiteDB(AbstractDB):
             True if the addition was successful, False otherwise.
         """
         try:
-            with self.conn:
+            with self._write_lock, self.conn:
                 self.conn.execute("""
                     INSERT OR REPLACE INTO clients (
                         client_id, api_key, name, description, is_admin,
@@ -142,7 +144,8 @@ class SQLiteDB(AbstractDB):
     def commit(self) -> bool:
         """Commit changes to the SQLite database."""
         try:
-            self.conn.commit()
+            with self._write_lock:
+                self.conn.commit()
             return True
         except sqlite3.Error as e:
             LOG.error(f"Failed to commit SQLite database: {e}")
