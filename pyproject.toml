@@ -12,6 +12,7 @@ requires-python = ">=3.9"
 dependencies = [
     "hivemind-plugin-manager>=0.1.0,<1.0.0",
     "hivemind-bus-client",
+    "ovos-utils",
 ]
 
 
