@@ -2,7 +2,7 @@ import json
 import os.path
 import sqlite3
 import threading
-from typing import List, Union, Iterable
+from typing import List, Optional, Union, Iterable
 
 from ovos_utils.log import LOG
 from ovos_utils.xdg_utils import xdg_data_home
@@ -24,17 +24,43 @@ class SQLiteDB(AbstractDB):
     """Database implementation using SQLite."""
     name: str = "clients"
     subfolder: str = "hivemind-core"
+    password: Optional[str] = None
 
     def __post_init__(self):
         """
         Initialize the SQLiteDB connection.
+
+        When *password* is set the database is opened via ``sqlcipher3`` and
+        encrypted with AES-256 (SQLCipher).  The system library
+        ``libsqlcipher0`` must be installed and ``sqlcipher3`` must be
+        available (``pip install hivemind-sqlite-database[cipher]``).
+
+        When *password* is ``None`` (default) the standard ``sqlite3`` module
+        is used and the database file is unencrypted.
         """
         db_path = os.path.join(xdg_data_home(), self.subfolder, self.name + ".db")
         LOG.debug(f"sqlite database path: {db_path}")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+        if self.password is not None:
+            if self.password == "":
+                raise ValueError("password must be non-empty when encryption is enabled")
+            try:
+                import sqlcipher3 as _sqlcipher
+            except ImportError:
+                raise ImportError(
+                    "sqlcipher3 is required to open an encrypted SQLite database. "
+                    "Install the system library (e.g. 'apt install libsqlcipher-dev') "
+                    "then: pip install hivemind-sqlite-database[cipher]"
+                )
+            self.conn = _sqlcipher.connect(db_path, check_same_thread=False)
+            self.conn.row_factory = _sqlcipher.Row
+            escaped_password = self.password.replace("'", "''")
+            self.conn.execute(f"PRAGMA key='{escaped_password}'")
+        else:
+            self.conn = sqlite3.connect(db_path, check_same_thread=False)
+            self.conn.row_factory = sqlite3.Row
+
         self.conn.execute("PRAGMA journal_mode=WAL")
         self._write_lock = threading.Lock()
         self._initialize_database()
