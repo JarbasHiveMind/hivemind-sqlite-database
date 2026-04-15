@@ -1,57 +1,12 @@
 # Changelog
 
-## [0.2.1a4](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a4) (2026-04-15)
+## [0.3.0a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a1) (2026-04-15)
 
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1a3...0.2.1a4)
-
-**Merged pull requests:**
-
-- ci: sync publish workflows from shared templates [\#22](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/22) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.2.1a3](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a3) (2026-04-15)
-
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1a2...0.2.1a3)
-
-## [0.2.1a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a2) (2026-04-15)
-
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1a1...0.2.1a2)
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1...0.3.0a1)
 
 **Merged pull requests:**
 
-- Update actions/setup-python action to v6 [\#15](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/15) ([renovate[bot]](https://github.com/apps/renovate))
-- Update actions/checkout action to v6 [\#9](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/9) ([renovate[bot]](https://github.com/apps/renovate))
-
-## [0.2.1a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a1) (2026-04-15)
-
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.0a1...0.2.1a1)
-
-**Merged pull requests:**
-
-- fix: move pytest\_plugins to top-level conftest for pytest 9 compatibility [\#18](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/18) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.2.0a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.0a1) (2026-04-15)
-
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.4a2...0.2.0a1)
-
-**Merged pull requests:**
-
-- feat: release 0.1.0 — tests, thread-safety, SQL injection fix [\#14](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/14) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.0.4a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.4a2) (2025-12-19)
-
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.4a1...0.0.4a2)
-
-**Merged pull requests:**
-
-- chore\(deps\): update actions/setup-python action to v6 [\#12](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/12) ([renovate[bot]](https://github.com/apps/renovate))
-
-## [0.0.4a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.0.4a1) (2025-12-18)
-
-[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.0.3...0.0.4a1)
-
-**Merged pull requests:**
-
-- chore: Configure Renovate [\#7](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/7) ([renovate[bot]](https://github.com/apps/renovate))
+- feat: add SQLCipher encryption support \(password kwarg\) [\#24](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/24) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
