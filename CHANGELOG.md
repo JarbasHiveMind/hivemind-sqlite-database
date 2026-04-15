@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1a4](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a4) (2026-04-15)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1a3...0.2.1a4)
+
+**Merged pull requests:**
+
+- ci: sync publish workflows from shared templates [\#22](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/22) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.2.1a3](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a3) (2026-04-15)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1a2...0.2.1a3)
+
 ## [0.2.1a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.2.1a2) (2026-04-15)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1a1...0.2.1a2)
