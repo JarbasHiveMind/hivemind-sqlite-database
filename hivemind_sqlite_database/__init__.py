@@ -14,7 +14,7 @@ from dataclasses import dataclass
 _VALID_COLUMNS = frozenset({
     "client_id", "api_key", "name", "description", "is_admin",
     "last_seen", "intent_blacklist", "skill_blacklist", "message_blacklist",
-    "allowed_types", "crypto_key", "password",
+    "pipeline_blacklist", "allowed_types", "crypto_key", "password",
     "can_broadcast", "can_escalate", "can_propagate",
 })
 
@@ -81,6 +81,7 @@ class SQLiteDB(AbstractDB):
                     intent_blacklist TEXT,
                     skill_blacklist TEXT,
                     message_blacklist TEXT,
+                    pipeline_blacklist TEXT,
                     allowed_types TEXT,
                     crypto_key VARCHAR(16),
                     password TEXT,
@@ -89,6 +90,13 @@ class SQLiteDB(AbstractDB):
                     can_propagate BOOLEAN DEFAULT TRUE
                 )
             """)
+            # Migration: existing databases predating pipeline_blacklist.
+            # ALTER TABLE ADD COLUMN is idempotent only via try/except — sqlite
+            # has no IF NOT EXISTS for column adds.
+            try:
+                self.conn.execute("ALTER TABLE clients ADD COLUMN pipeline_blacklist TEXT")
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
     def add_item(self, client: Client) -> bool:
         """
@@ -106,15 +114,17 @@ class SQLiteDB(AbstractDB):
                     INSERT OR REPLACE INTO clients (
                         client_id, api_key, name, description, is_admin,
                         last_seen, intent_blacklist, skill_blacklist,
-                        message_blacklist, allowed_types, crypto_key, password,
+                        message_blacklist, pipeline_blacklist, allowed_types,
+                        crypto_key, password,
                         can_broadcast, can_escalate, can_propagate
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     client.client_id, client.api_key, client.name, client.description,
                     client.is_admin, client.last_seen,
                     json.dumps(client.intent_blacklist),
                     json.dumps(client.skill_blacklist),
                     json.dumps(client.message_blacklist),
+                    json.dumps(client.pipeline_blacklist),
                     json.dumps(client.allowed_types),
                     client.crypto_key, client.password,
                     client.can_broadcast, client.can_escalate, client.can_propagate
@@ -190,6 +200,7 @@ class SQLiteDB(AbstractDB):
             intent_blacklist=json.loads(row["intent_blacklist"] or "[]"),
             skill_blacklist=json.loads(row["skill_blacklist"] or "[]"),
             message_blacklist=json.loads(row["message_blacklist"] or "[]"),
+            pipeline_blacklist=json.loads(row["pipeline_blacklist"] or "[]"),
             allowed_types=json.loads(row["allowed_types"] or "[]"),
             crypto_key=row["crypto_key"],
             password=row["password"],
