@@ -91,12 +91,17 @@ class SQLiteDB(AbstractDB):
                 )
             """)
             # Migration: existing databases predating pipeline_blacklist.
-            # ALTER TABLE ADD COLUMN is idempotent only via try/except — sqlite
-            # has no IF NOT EXISTS for column adds.
-            try:
-                self.conn.execute("ALTER TABLE clients ADD COLUMN pipeline_blacklist TEXT")
-            except sqlite3.OperationalError:
-                pass  # column already exists
+            # sqlite has no IF NOT EXISTS for ADD COLUMN, so probe PRAGMA to
+            # avoid catching backend-specific OperationalError subclasses
+            # (sqlite3.OperationalError vs sqlcipher3.dbapi2.OperationalError).
+            existing_cols = {
+                row["name"]
+                for row in self.conn.execute("PRAGMA table_info(clients)").fetchall()
+            }
+            if "pipeline_blacklist" not in existing_cols:
+                self.conn.execute(
+                    "ALTER TABLE clients ADD COLUMN pipeline_blacklist TEXT"
+                )
 
     def add_item(self, client: Client) -> bool:
         """

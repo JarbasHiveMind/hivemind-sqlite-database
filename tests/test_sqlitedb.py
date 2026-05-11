@@ -389,5 +389,123 @@ class TestSQLiteDBMissingCipher(unittest.TestCase):
                 self.assertIn("sqlcipher3", str(ctx.exception))
 
 
+class TestSQLiteDBPipelineBlacklist(unittest.TestCase):
+    def test_schema_includes_pipeline_blacklist_column(self):
+        db = make_db()
+        cur = db.conn.execute("PRAGMA table_info(clients)")
+        cols = {row["name"] for row in cur.fetchall()}
+        self.assertIn("pipeline_blacklist", cols)
+
+    def test_pipeline_blacklist_is_a_valid_search_column(self):
+        from hivemind_sqlite_database import _VALID_COLUMNS
+        self.assertIn("pipeline_blacklist", _VALID_COLUMNS)
+
+    def test_roundtrip_with_values(self):
+        db = make_db()
+        c = make_client(
+            pipeline_blacklist=[
+                "ovos-fallback-pipeline-plugin-low",
+                "ovos-stop-pipeline-plugin-medium",
+            ]
+        )
+        self.assertTrue(db.add_item(c))
+        got = next(iter(db))
+        self.assertEqual(
+            got.pipeline_blacklist,
+            [
+                "ovos-fallback-pipeline-plugin-low",
+                "ovos-stop-pipeline-plugin-medium",
+            ],
+        )
+
+    def test_roundtrip_default_empty_list(self):
+        db = make_db()
+        self.assertTrue(db.add_item(make_client()))
+        got = next(iter(db))
+        self.assertEqual(got.pipeline_blacklist, [])
+
+    def test_legacy_schema_is_migrated_in_place(self):
+        """An existing DB predating pipeline_blacklist gets the column added on init."""
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            path = f.name
+        try:
+            # Hand-craft the pre-pipeline_blacklist schema and seed a row.
+            con = sqlite3.connect(path)
+            con.execute(
+                """
+                CREATE TABLE clients (
+                    client_id INTEGER PRIMARY KEY,
+                    api_key VARCHAR(255) NOT NULL,
+                    name VARCHAR(255),
+                    description VARCHAR(255),
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    last_seen REAL DEFAULT -1,
+                    intent_blacklist TEXT,
+                    skill_blacklist TEXT,
+                    message_blacklist TEXT,
+                    allowed_types TEXT,
+                    crypto_key VARCHAR(16),
+                    password TEXT,
+                    can_broadcast BOOLEAN DEFAULT TRUE,
+                    can_escalate BOOLEAN DEFAULT TRUE,
+                    can_propagate BOOLEAN DEFAULT TRUE
+                )
+                """
+            )
+            con.execute(
+                "INSERT INTO clients (client_id, api_key, name, intent_blacklist,"
+                " skill_blacklist, message_blacklist, allowed_types)"
+                " VALUES (1, 'k', 'legacy', '[]', '[]', '[]', '[]')"
+            )
+            con.commit()
+            con.close()
+
+            # Re-open through SQLiteDB, which should ALTER TABLE in-place.
+            db = object.__new__(SQLiteDB)
+            db.name = "clients"
+            db.subfolder = "hivemind-core"
+            db.conn = sqlite3.connect(path, check_same_thread=False)
+            db.conn.row_factory = sqlite3.Row
+            db.conn.execute("PRAGMA journal_mode=WAL")
+            db._write_lock = threading.Lock()
+            db._initialize_database()
+
+            cur = db.conn.execute("PRAGMA table_info(clients)")
+            cols = {row["name"] for row in cur.fetchall()}
+            self.assertIn("pipeline_blacklist", cols)
+
+            # Existing rows back-fill to [] and new rows persist correctly.
+            legacy = next(iter(db))
+            self.assertEqual(legacy.pipeline_blacklist, [])
+
+            self.assertTrue(db.add_item(make_client(client_id=2, api_key="k2",
+                                                   pipeline_blacklist=["x"])))
+            got = sorted(list(db), key=lambda c: c.client_id)
+            self.assertEqual(got[1].pipeline_blacklist, ["x"])
+        finally:
+            os.unlink(path)
+
+    def test_repeated_init_does_not_raise(self):
+        """ALTER TABLE is guarded; init on an already-migrated DB is a no-op."""
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            path = f.name
+        try:
+            def _open() -> SQLiteDB:
+                db = object.__new__(SQLiteDB)
+                db.name = "clients"
+                db.subfolder = "hivemind-core"
+                db.conn = sqlite3.connect(path, check_same_thread=False)
+                db.conn.row_factory = sqlite3.Row
+                db.conn.execute("PRAGMA journal_mode=WAL")
+                db._write_lock = threading.Lock()
+                db._initialize_database()
+                return db
+
+            _open()  # first run creates the table
+            _open()  # second run must not raise on the ALTER
+        finally:
+            os.unlink(path)
+
+
 if __name__ == "__main__":
     unittest.main()
