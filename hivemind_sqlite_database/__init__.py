@@ -9,13 +9,16 @@ from ovos_utils.xdg_utils import xdg_data_home
 
 from hivemind_plugin_manager.database import Client, AbstractDB
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+
+
+CLIENT_SUPPORTS_METADATA = any(field.name == "metadata" for field in fields(Client))
 
 _VALID_COLUMNS = frozenset({
     "client_id", "api_key", "name", "description", "is_admin",
     "last_seen", "intent_blacklist", "skill_blacklist", "message_blacklist",
     "allowed_types", "crypto_key", "password",
-    "can_broadcast", "can_escalate", "can_propagate",
+    "can_broadcast", "can_escalate", "can_propagate", "metadata",
 })
 
 
@@ -86,9 +89,16 @@ class SQLiteDB(AbstractDB):
                     password TEXT,
                     can_broadcast BOOLEAN DEFAULT TRUE,
                     can_escalate BOOLEAN DEFAULT TRUE,
-                    can_propagate BOOLEAN DEFAULT TRUE
+                    can_propagate BOOLEAN DEFAULT TRUE,
+                    metadata TEXT
                 )
             """)
+            columns = {
+                row["name"]
+                for row in self.conn.execute("PRAGMA table_info(clients)").fetchall()
+            }
+            if "metadata" not in columns:
+                self.conn.execute("ALTER TABLE clients ADD COLUMN metadata TEXT")
 
     def add_item(self, client: Client) -> bool:
         """
@@ -101,14 +111,15 @@ class SQLiteDB(AbstractDB):
             True if the addition was successful, False otherwise.
         """
         try:
+            metadata_json = self._metadata_to_json(getattr(client, "metadata", {}) or {})
             with self._write_lock, self.conn:
                 self.conn.execute("""
                     INSERT OR REPLACE INTO clients (
                         client_id, api_key, name, description, is_admin,
                         last_seen, intent_blacklist, skill_blacklist,
                         message_blacklist, allowed_types, crypto_key, password,
-                        can_broadcast, can_escalate, can_propagate
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        can_broadcast, can_escalate, can_propagate, metadata
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     client.client_id, client.api_key, client.name, client.description,
                     client.is_admin, client.last_seen,
@@ -117,7 +128,8 @@ class SQLiteDB(AbstractDB):
                     json.dumps(client.message_blacklist),
                     json.dumps(client.allowed_types),
                     client.crypto_key, client.password,
-                    client.can_broadcast, client.can_escalate, client.can_propagate
+                    client.can_broadcast, client.can_escalate, client.can_propagate,
+                    metadata_json,
                 ))
             return True
         except sqlite3.Error as e:
@@ -180,20 +192,42 @@ class SQLiteDB(AbstractDB):
     @staticmethod
     def _row_to_client(row: sqlite3.Row) -> Client:
         """Convert a database row to a Client instance."""
-        return Client(
-            client_id=int(row["client_id"]),
-            api_key=row["api_key"],
-            name=row["name"],
-            description=row["description"],
-            is_admin=bool(row["is_admin"]),
-            last_seen=row["last_seen"],
-            intent_blacklist=json.loads(row["intent_blacklist"] or "[]"),
-            skill_blacklist=json.loads(row["skill_blacklist"] or "[]"),
-            message_blacklist=json.loads(row["message_blacklist"] or "[]"),
-            allowed_types=json.loads(row["allowed_types"] or "[]"),
-            crypto_key=row["crypto_key"],
-            password=row["password"],
-            can_broadcast=bool(row["can_broadcast"]),
-            can_escalate=bool(row["can_escalate"]),
-            can_propagate=bool(row["can_propagate"])
-        )
+        kwargs = {
+            "client_id": int(row["client_id"]),
+            "api_key": row["api_key"],
+            "name": row["name"],
+            "description": row["description"],
+            "is_admin": bool(row["is_admin"]),
+            "last_seen": row["last_seen"],
+            "intent_blacklist": json.loads(row["intent_blacklist"] or "[]"),
+            "skill_blacklist": json.loads(row["skill_blacklist"] or "[]"),
+            "message_blacklist": json.loads(row["message_blacklist"] or "[]"),
+            "allowed_types": json.loads(row["allowed_types"] or "[]"),
+            "crypto_key": row["crypto_key"],
+            "password": row["password"],
+            "can_broadcast": bool(row["can_broadcast"]),
+            "can_escalate": bool(row["can_escalate"]),
+            "can_propagate": bool(row["can_propagate"]),
+        }
+        if CLIENT_SUPPORTS_METADATA:
+            kwargs["metadata"] = SQLiteDB._metadata_from_row(row)
+        return Client(**kwargs)
+
+    @staticmethod
+    def _metadata_to_json(metadata: object) -> str:
+        if not isinstance(metadata, dict):
+            return "{}"
+        try:
+            return json.dumps(metadata, default=str)
+        except (TypeError, ValueError):
+            return "{}"
+
+    @staticmethod
+    def _metadata_from_row(row: sqlite3.Row) -> dict:
+        if "metadata" not in row.keys() or not row["metadata"]:
+            return {}
+        try:
+            metadata = json.loads(row["metadata"])
+        except (TypeError, ValueError):
+            return {}
+        return metadata if isinstance(metadata, dict) else {}
