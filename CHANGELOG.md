@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a2) (2026-05-18)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.3.0a1...0.3.0a2)
+
+**Closed issues:**
+
+- security: encrypted db [\#2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/issues/2)
+
+**Merged pull requests:**
+
+- Preserve client metadata \(supersedes \#29\) [\#30](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/30) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.3.0a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a1) (2026-04-15)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.2.1...0.3.0a1)
