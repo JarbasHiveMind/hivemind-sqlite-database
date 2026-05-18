@@ -212,6 +212,15 @@ class SQLiteDB(AbstractDB):
 
     @staticmethod
     def _metadata_to_json(metadata: object) -> str:
+        """Serialize ``Client.metadata`` for storage in the ``metadata`` column.
+
+        ``metadata`` is documented as a free-form dict; we use ``default=str``
+        so callers can stash convenience values like ``datetime`` or ``UUID``
+        without crashing on insert. Note that these come back as strings on
+        read — the column is opaque JSON, not a typed map. Returns ``"{}"``
+        for non-dict input and on any (unexpected) serialisation failure
+        rather than corrupting the row.
+        """
         if not isinstance(metadata, dict):
             return "{}"
         try:
@@ -221,6 +230,11 @@ class SQLiteDB(AbstractDB):
 
     @staticmethod
     def _metadata_from_row(row: sqlite3.Row) -> dict:
+        """Decode the ``metadata`` column into a dict, swallowing garbage.
+
+        Returns ``{}`` for NULL, malformed JSON, or valid-JSON-that-isn't-an-object.
+        Lets a single bad row not poison iteration over the table.
+        """
         if "metadata" not in row.keys() or not row["metadata"]:
             return {}
         try:
