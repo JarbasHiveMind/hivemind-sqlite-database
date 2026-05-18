@@ -7,14 +7,9 @@ import tempfile
 import threading
 import os
 import unittest
-from dataclasses import fields
 
 from hivemind_plugin_manager.database import Client
 from hivemind_sqlite_database import SQLiteDB
-
-
-CLIENT_SUPPORTS_METADATA = any(field.name == "metadata" for field in fields(Client))
-METADATA_SUPPORT_REQUIRED = "Client.metadata requires hivemind-plugin-manager metadata support"
 
 
 def make_db() -> SQLiteDB:
@@ -31,11 +26,7 @@ def make_db() -> SQLiteDB:
 
 
 def make_client(client_id: int = 1, api_key: str = "key-abc", **kwargs) -> Client:
-    metadata = kwargs.pop("metadata", None)
-    client = Client(client_id=client_id, api_key=api_key, **kwargs)
-    if metadata is not None:
-        client.metadata = metadata
-    return client
+    return Client(client_id=client_id, api_key=api_key, **kwargs)
 
 
 class TestSQLiteDBWAL(unittest.TestCase):
@@ -246,8 +237,6 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertFalse(results[0].can_broadcast)
 
     def test_metadata_survives_round_trip(self):
-        if not CLIENT_SUPPORTS_METADATA:
-            self.skipTest(METADATA_SUPPORT_REQUIRED)
         db = make_db()
         db.add_item(
             make_client(
@@ -263,8 +252,6 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(results[0].metadata, {"owner_id": "owner-123"})
 
     def test_metadata_can_be_searched(self):
-        if not CLIENT_SUPPORTS_METADATA:
-            self.skipTest(METADATA_SUPPORT_REQUIRED)
         db = make_db()
         db.add_item(
             make_client(
@@ -316,12 +303,28 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         }
         self.assertIn("metadata", columns)
         client = db.search_by_value("api_key", "k1")[0]
-        if CLIENT_SUPPORTS_METADATA:
-            self.assertEqual(client.metadata, {})
+        self.assertEqual(client.metadata, {})
+
+    def test_metadata_nested_dict_round_trip(self):
+        db = make_db()
+        meta = {
+            "owner": {"id": "owner-1", "tags": ["a", "b"]},
+            "counts": {"x": 1, "y": 2},
+        }
+        db.add_item(make_client(1, "k1", metadata=meta))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metadata, meta)
+
+    def test_metadata_non_ascii_round_trip(self):
+        db = make_db()
+        meta = {"name": "Zé Ninguém", "emoji": "🚀", "ru": "Привет"}
+        db.add_item(make_client(1, "k1", metadata=meta))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metadata, meta)
 
     def test_metadata_survives_iteration(self):
-        if not CLIENT_SUPPORTS_METADATA:
-            self.skipTest(METADATA_SUPPORT_REQUIRED)
         db = make_db()
         db.add_item(
             make_client(
@@ -368,8 +371,7 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.crypto_key, "1234567890123456")
         self.assertEqual(r.password, "secret")
         self.assertFalse(r.can_escalate)
-        if CLIENT_SUPPORTS_METADATA:
-            self.assertEqual(r.metadata, {"owner_id": "owner-123"})
+        self.assertEqual(r.metadata, {"owner_id": "owner-123"})
 
 
 class TestSQLiteDBCommit(unittest.TestCase):

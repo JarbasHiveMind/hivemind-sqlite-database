@@ -9,10 +9,8 @@ from ovos_utils.xdg_utils import xdg_data_home
 
 from hivemind_plugin_manager.database import Client, AbstractDB
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 
-
-CLIENT_SUPPORTS_METADATA = any(field.name == "metadata" for field in fields(Client))
 
 _VALID_COLUMNS = frozenset({
     "client_id", "api_key", "name", "description", "is_admin",
@@ -111,7 +109,7 @@ class SQLiteDB(AbstractDB):
             True if the addition was successful, False otherwise.
         """
         try:
-            metadata_json = self._metadata_to_json(getattr(client, "metadata", {}) or {})
+            metadata_json = self._metadata_to_json(client.metadata or {})
             with self._write_lock, self.conn:
                 self.conn.execute("""
                     INSERT OR REPLACE INTO clients (
@@ -208,9 +206,8 @@ class SQLiteDB(AbstractDB):
             "can_broadcast": bool(row["can_broadcast"]),
             "can_escalate": bool(row["can_escalate"]),
             "can_propagate": bool(row["can_propagate"]),
+            "metadata": SQLiteDB._metadata_from_row(row),
         }
-        if CLIENT_SUPPORTS_METADATA:
-            kwargs["metadata"] = SQLiteDB._metadata_from_row(row)
         return Client(**kwargs)
 
     @staticmethod
