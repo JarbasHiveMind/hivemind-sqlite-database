@@ -339,6 +339,44 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(len(clients), 1)
         self.assertEqual(clients[0].metadata, {"owner_id": "owner-123"})
 
+    def test_metadata_defaults_to_empty_dict_when_not_provided(self):
+        db = make_db()
+        db.add_item(make_client(1, "k1"))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+
+    def test_metadata_overwritten_on_reinsert_with_same_client_id(self):
+        db = make_db()
+        db.add_item(make_client(1, "k1", metadata={"v": 1}))
+        db.add_item(make_client(1, "k1", metadata={"v": 2, "extra": "x"}))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metadata, {"v": 2, "extra": "x"})
+
+    def test_metadata_to_json_returns_empty_for_non_dict(self):
+        self.assertEqual(SQLiteDB._metadata_to_json("not a dict"), "{}")
+        self.assertEqual(SQLiteDB._metadata_to_json(None), "{}")
+        self.assertEqual(SQLiteDB._metadata_to_json(42), "{}")
+
+    def test_metadata_from_row_returns_empty_for_garbage_or_missing(self):
+        db = make_db()
+        # legacy-style row with explicit NULL metadata
+        db.add_item(make_client(1, "k1"))
+        with db.conn:
+            db.conn.execute("UPDATE clients SET metadata = NULL WHERE client_id = 1")
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+        # garbage JSON in the metadata column → coerce to {}
+        with db.conn:
+            db.conn.execute("UPDATE clients SET metadata = 'not json{' WHERE client_id = 1")
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+        # valid JSON but not an object → coerce to {}
+        with db.conn:
+            db.conn.execute("UPDATE clients SET metadata = '[1,2,3]' WHERE client_id = 1")
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+
     def test_full_client_fields_preserved(self):
         db = make_db()
         c = make_client(
