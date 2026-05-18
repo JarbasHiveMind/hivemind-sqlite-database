@@ -236,9 +236,150 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertIs(type(results[0].can_broadcast), bool)
         self.assertFalse(results[0].can_broadcast)
 
+    def test_metadata_survives_round_trip(self):
+        db = make_db()
+        db.add_item(
+            make_client(
+                1,
+                "k1",
+                metadata={"owner_id": "owner-123"},
+            )
+        )
+
+        results = db.search_by_value("api_key", "k1")
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metadata, {"owner_id": "owner-123"})
+
+    def test_metadata_can_be_searched(self):
+        db = make_db()
+        db.add_item(
+            make_client(
+                1,
+                "k1",
+                metadata={"owner_id": "owner-123"},
+            )
+        )
+
+        results = db.search_by_value("metadata", '{"owner_id": "owner-123"}')
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].api_key, "k1")
+
+    def test_initialize_database_migrates_legacy_clients_table(self):
+        db = object.__new__(SQLiteDB)
+        db.name = "clients"
+        db.subfolder = "hivemind-core"
+        db.conn = sqlite3.connect(":memory:", check_same_thread=False)
+        db.conn.row_factory = sqlite3.Row
+        db._write_lock = threading.Lock()
+        with db.conn:
+            db.conn.execute("""
+                CREATE TABLE clients (
+                    client_id INTEGER PRIMARY KEY,
+                    api_key VARCHAR(255) NOT NULL,
+                    name VARCHAR(255),
+                    description VARCHAR(255),
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    last_seen REAL DEFAULT -1,
+                    intent_blacklist TEXT,
+                    skill_blacklist TEXT,
+                    message_blacklist TEXT,
+                    allowed_types TEXT,
+                    crypto_key VARCHAR(16),
+                    password TEXT,
+                    can_broadcast BOOLEAN DEFAULT TRUE,
+                    can_escalate BOOLEAN DEFAULT TRUE,
+                    can_propagate BOOLEAN DEFAULT TRUE
+                )
+            """)
+            db.conn.execute("INSERT INTO clients (client_id, api_key) VALUES (1, 'k1')")
+
+        db._initialize_database()
+
+        columns = {
+            row["name"]
+            for row in db.conn.execute("PRAGMA table_info(clients)").fetchall()
+        }
+        self.assertIn("metadata", columns)
+        client = db.search_by_value("api_key", "k1")[0]
+        self.assertEqual(client.metadata, {})
+
+    def test_metadata_nested_dict_round_trip(self):
+        db = make_db()
+        meta = {
+            "owner": {"id": "owner-1", "tags": ["a", "b"]},
+            "counts": {"x": 1, "y": 2},
+        }
+        db.add_item(make_client(1, "k1", metadata=meta))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metadata, meta)
+
+    def test_metadata_non_ascii_round_trip(self):
+        db = make_db()
+        meta = {"name": "Zé Ninguém", "emoji": "🚀", "ru": "Привет"}
+        db.add_item(make_client(1, "k1", metadata=meta))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metadata, meta)
+
+    def test_metadata_survives_iteration(self):
+        db = make_db()
+        db.add_item(
+            make_client(
+                1,
+                "k1",
+                metadata={"owner_id": "owner-123"},
+            )
+        )
+
+        clients = list(db)
+
+        self.assertEqual(len(clients), 1)
+        self.assertEqual(clients[0].metadata, {"owner_id": "owner-123"})
+
+    def test_metadata_defaults_to_empty_dict_when_not_provided(self):
+        db = make_db()
+        db.add_item(make_client(1, "k1"))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+
+    def test_metadata_overwritten_on_reinsert_with_same_client_id(self):
+        db = make_db()
+        db.add_item(make_client(1, "k1", metadata={"v": 1}))
+        db.add_item(make_client(1, "k1", metadata={"v": 2, "extra": "x"}))
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metadata, {"v": 2, "extra": "x"})
+
+    def test_metadata_to_json_returns_empty_for_non_dict(self):
+        self.assertEqual(SQLiteDB._metadata_to_json("not a dict"), "{}")
+        self.assertEqual(SQLiteDB._metadata_to_json(None), "{}")
+        self.assertEqual(SQLiteDB._metadata_to_json(42), "{}")
+
+    def test_metadata_from_row_returns_empty_for_garbage_or_missing(self):
+        db = make_db()
+        # legacy-style row with explicit NULL metadata
+        db.add_item(make_client(1, "k1"))
+        with db.conn:
+            db.conn.execute("UPDATE clients SET metadata = NULL WHERE client_id = 1")
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+        # garbage JSON in the metadata column → coerce to {}
+        with db.conn:
+            db.conn.execute("UPDATE clients SET metadata = 'not json{' WHERE client_id = 1")
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+        # valid JSON but not an object → coerce to {}
+        with db.conn:
+            db.conn.execute("UPDATE clients SET metadata = '[1,2,3]' WHERE client_id = 1")
+        results = db.search_by_value("api_key", "k1")
+        self.assertEqual(results[0].metadata, {})
+
     def test_full_client_fields_preserved(self):
         db = make_db()
-        c = Client(
+        c = make_client(
             client_id=42,
             api_key="full-key",
             name="test-client",
@@ -254,6 +395,7 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
             can_broadcast=True,
             can_escalate=False,
             can_propagate=True,
+            metadata={"owner_id": "owner-123"},
         )
         db.add_item(c)
         results = db.search_by_value("api_key", "full-key")
@@ -267,6 +409,7 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.crypto_key, "1234567890123456")
         self.assertEqual(r.password, "secret")
         self.assertFalse(r.can_escalate)
+        self.assertEqual(r.metadata, {"owner_id": "owner-123"})
 
 
 class TestSQLiteDBCommit(unittest.TestCase):
