@@ -735,5 +735,53 @@ class TestSQLiteDBEmptyDatabaseMigration(unittest.TestCase):
             self.assertEqual(count, 0)
 
 
+class TestSQLiteDBForwardCompat(unittest.TestCase):
+    """A DB whose ``user_version`` is newer than this backend supports
+    must fail loudly with a RuntimeError instead of silently downgrading.
+    """
+
+    def test_forward_version_raises_runtime_error(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+                db.conn.execute("PRAGMA user_version = 999")
+                db.conn.commit()
+                db.conn.close()
+                with self.assertRaises(RuntimeError) as ctx:
+                    SQLiteDB(name="clients", subfolder="hivemind-core")
+                self.assertIn("999", str(ctx.exception))
+
+
+class TestSQLiteDBGetClientByID(unittest.TestCase):
+    def test_get_client_by_id_returns_row(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+                from hivemind_plugin_manager.database import Client
+                db.add_item(Client(client_id=42, api_key="k", name="alice"))
+                got = db.get_client_by_id(42)
+                self.assertIsNotNone(got)
+                self.assertEqual(got.client_id, 42)
+                self.assertIsNone(db.get_client_by_id(999))
+
+    def test_refresh_picks_up_updates(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+                from hivemind_plugin_manager.database import Client
+                db.add_item(Client(client_id=1, api_key="k", name="a",
+                                   allowed_types=["x"]))
+                self.assertEqual(db.refresh(1).allowed_types, ["x"])
+                db.add_item(Client(client_id=1, api_key="k", name="a",
+                                   allowed_types=["y"]))
+                self.assertEqual(db.refresh(1).allowed_types, ["y"])
+
+
 if __name__ == "__main__":
     unittest.main()

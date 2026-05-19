@@ -108,6 +108,7 @@ class SQLiteDB(AbstractDB):
         """
         target = getattr(AbstractDB, "SCHEMA_VERSION", 1)
         stored = self.conn.execute("PRAGMA user_version").fetchone()[0]
+        self._check_forward_compat(int(stored))
         if stored < target:
             LOG.info("SQLiteDB: migrating schema v%d -> v%d", stored, target)
             # Migrate row rewrites and the user_version bump share one
@@ -233,6 +234,27 @@ class SQLiteDB(AbstractDB):
         except sqlite3.Error as e:
             LOG.error(f"Failed to search clients in SQLite: {e}")
             return []
+
+    def get_client_by_id(self, client_id: int) -> Optional[Client]:
+        """Fetch a single client row by primary key.
+
+        Targeted lookup used by :meth:`refresh` on the admission hot
+        path — avoids the full ``search_by_value`` fallback. Returns
+        ``None`` if the row does not exist or on any DB error.
+        """
+        if client_id is None:
+            return None
+        try:
+            cur = self.conn.execute(
+                "SELECT * FROM clients WHERE client_id = ?", (int(client_id),),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return self._row_to_client(row)
+        except (sqlite3.Error, TypeError, ValueError) as e:
+            LOG.error(f"Failed to fetch client {client_id} from SQLite: {e}")
+            return None
 
     def __len__(self) -> int:
         """Get the number of clients in the database."""
