@@ -388,7 +388,6 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
             last_seen=1234567890.0,
             intent_blacklist=["a:b"],
             skill_blacklist=["c:d"],
-            message_blacklist=["e:f"],
             allowed_types=["recognizer_loop:utterance"],
             crypto_key="1234567890123456",
             password="secret",
@@ -409,18 +408,16 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.crypto_key, "1234567890123456")
         self.assertEqual(r.password, "secret")
         self.assertFalse(r.can_escalate)
-        # After SCHEMA_VERSION=2: legacy blacklist kwargs auto-migrate into
-        # ``Client.metadata`` via Client.__init__, so the round-tripped
-        # metadata also carries the blacklists alongside owner_id.
+        # After SCHEMA_VERSION=2: legacy skill/intent kwargs auto-migrate
+        # into ``Client.metadata`` via Client.__init__. message_blacklist
+        # is gone from the data model — not accepted as a kwarg and not
+        # carried in metadata.
         self.assertEqual(r.metadata, {
             "owner_id": "owner-123",
             "intent_blacklist": ["a:b"],
             "skill_blacklist": ["c:d"],
-            "message_blacklist": ["e:f"],
         })
-        # Property shims still surface skill/intent blacklists at the
-        # legacy attribute names (``message_blacklist`` has no shim — it
-        # was dropped from hivemind-core; access via metadata only).
+        # Property shims surface skill/intent blacklists at legacy names.
         self.assertEqual(r.skill_blacklist, ["c:d"])
         self.assertEqual(r.intent_blacklist, ["a:b"])
 
@@ -590,7 +587,32 @@ class TestSQLiteDBMigration(unittest.TestCase):
         self.assertEqual(meta["owner"], "u")
         self.assertEqual(meta["intent_blacklist"], ["i:1"])
         self.assertEqual(meta["skill_blacklist"], ["s:1"])
-        self.assertEqual(meta["message_blacklist"], ["m:1"])
+        # message_blacklist is purged outright, NOT folded into metadata.
+        self.assertNotIn("message_blacklist", meta)
+
+    def test_migrate_purges_residual_metadata_message_blacklist(self):
+        """An older plugin version may have folded message_blacklist
+        into metadata before HPM removed the field. The newer migrate()
+        must purge it on re-run, leaving the disk clean."""
+        db = self._make_v1_db_with_legacy_rows()
+        # Seed an already-half-migrated row: legacy columns NULL, but
+        # metadata still carries the old key from the prior migration.
+        db.conn.execute(
+            "UPDATE clients SET intent_blacklist = NULL, "
+            "skill_blacklist = NULL, message_blacklist = NULL, "
+            "metadata = ? WHERE client_id = 7",
+            ('{"owner": "u", "message_blacklist": ["m:1"]}',),
+        )
+        db.conn.commit()
+
+        db.migrate(from_version=1)
+
+        import json as _json
+        meta = _json.loads(db.conn.execute(
+            "SELECT metadata FROM clients WHERE client_id = 7"
+        ).fetchone()["metadata"])
+        self.assertNotIn("message_blacklist", meta)
+        self.assertEqual(meta["owner"], "u")
 
     def test_migrate_is_idempotent(self):
         db = self._make_v1_db_with_legacy_rows()

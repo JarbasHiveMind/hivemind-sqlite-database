@@ -122,12 +122,15 @@ class SQLiteDB(AbstractDB):
         clobbers explicit metadata values) and the legacy columns are
         unconditionally NULLed in the same transaction.
 
-        v1 -> v2: fold ``intent_blacklist`` / ``skill_blacklist`` /
-        ``message_blacklist`` column values into each row's ``metadata``
-        JSON dict, then NULL the legacy columns. The columns themselves
-        remain in the table (SQLite ``ALTER TABLE ... DROP COLUMN`` is
-        unreliable on older versions) but are no longer written by
-        ``add_item``.
+        v1 -> v2: fold ``intent_blacklist`` / ``skill_blacklist`` column
+        values into each row's ``metadata`` JSON dict, then NULL the
+        legacy columns. ``message_blacklist`` is **purged without
+        carry-forward** — the field was a design mistake from 2024-12-20
+        that contradicted the deny-by-default whitelist model and was
+        removed from the Client data model in HPM. The columns
+        themselves remain in the table (SQLite ``ALTER TABLE ... DROP
+        COLUMN`` is unreliable on older versions) but are no longer
+        written by ``add_item``.
         """
         if from_version >= 2:
             return
@@ -137,8 +140,10 @@ class SQLiteDB(AbstractDB):
                 "message_blacklist, metadata FROM clients"
             ).fetchall():
                 metadata = self._metadata_from_row(row) or {}
-                for key in ("intent_blacklist", "skill_blacklist",
-                            "message_blacklist"):
+                # Drop any pre-existing metadata["message_blacklist"]
+                # from earlier migration runs that folded it in.
+                metadata.pop("message_blacklist", None)
+                for key in ("intent_blacklist", "skill_blacklist"):
                     raw = row[key]
                     if not raw:
                         continue
@@ -261,7 +266,10 @@ class SQLiteDB(AbstractDB):
         ``metadata`` locally as a defensive fallback.
         """
         metadata = SQLiteDB._metadata_from_row(row) or {}
-        for key in ("intent_blacklist", "skill_blacklist", "message_blacklist"):
+        # message_blacklist was removed from the Client data model — drop
+        # any residual metadata key from earlier migrations.
+        metadata.pop("message_blacklist", None)
+        for key in ("intent_blacklist", "skill_blacklist"):
             raw = row[key] if key in row.keys() else None
             if not raw or key in metadata:
                 continue
