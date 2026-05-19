@@ -712,5 +712,28 @@ class TestSQLiteDBMigration(unittest.TestCase):
                              ["legacy.skill"])
 
 
+class TestSQLiteDBEmptyDatabaseMigration(unittest.TestCase):
+    """A fresh DB (no rows, user_version=0) must still bump to the
+    current SCHEMA_VERSION on first open. Validates the cotransactional
+    migrate + sentinel write."""
+
+    def test_empty_new_db_bumps_user_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            import unittest.mock as mock
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+            stored = db.conn.execute("PRAGMA user_version").fetchone()[0]
+            from hivemind_plugin_manager.database import AbstractDB
+            target = getattr(AbstractDB, "SCHEMA_VERSION", 1)
+            self.assertEqual(stored, target)
+            # No rows in the clients table — migration must be a no-op
+            # over rows but the sentinel still moves.
+            count = db.conn.execute(
+                "SELECT COUNT(*) FROM clients"
+            ).fetchone()[0]
+            self.assertEqual(count, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

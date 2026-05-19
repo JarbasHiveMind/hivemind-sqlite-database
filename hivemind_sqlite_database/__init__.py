@@ -110,8 +110,11 @@ class SQLiteDB(AbstractDB):
         stored = self.conn.execute("PRAGMA user_version").fetchone()[0]
         if stored < target:
             LOG.info("SQLiteDB: migrating schema v%d -> v%d", stored, target)
-            self.migrate(from_version=stored)
+            # Migrate row rewrites and the user_version bump share one
+            # transaction so a crash never leaves the DB at "migrated rows
+            # but stale sentinel" or vice versa.
             with self._write_lock, self.conn:
+                self._migrate_locked(from_version=stored)
                 self.conn.execute(f"PRAGMA user_version = {int(target)}")
 
     def migrate(self, from_version: int) -> None:
@@ -133,30 +136,39 @@ class SQLiteDB(AbstractDB):
         if from_version >= 2:
             return
         with self._write_lock, self.conn:
-            for row in self.conn.execute(
-                "SELECT client_id, intent_blacklist, skill_blacklist, "
-                "message_blacklist, metadata FROM clients"
-            ).fetchall():
-                metadata = self._metadata_from_row(row) or {}
-                # Drop any pre-existing metadata["message_blacklist"]
-                # from earlier migration runs that folded it in.
-                metadata.pop("message_blacklist", None)
-                for key in ("intent_blacklist", "skill_blacklist"):
-                    raw = row[key]
-                    if not raw:
-                        continue
-                    try:
-                        legacy = json.loads(raw)
-                    except (TypeError, ValueError):
-                        continue
-                    if legacy and key not in metadata:
-                        metadata[key] = list(legacy)
-                self.conn.execute(
-                    "UPDATE clients SET intent_blacklist = NULL, "
-                    "skill_blacklist = NULL, message_blacklist = NULL, "
-                    "metadata = ? WHERE client_id = ?",
-                    (self._metadata_to_json(metadata), int(row["client_id"])),
-                )
+            self._migrate_locked(from_version=from_version)
+
+    def _migrate_locked(self, from_version: int) -> None:
+        """Inner migration body — assumes the caller already holds
+        ``_write_lock`` and is inside a ``with self.conn`` transaction.
+        Lets ``_maybe_migrate`` bundle the version-sentinel bump into the
+        same transaction as the row rewrites."""
+        if from_version >= 2:
+            return
+        for row in self.conn.execute(
+            "SELECT client_id, intent_blacklist, skill_blacklist, "
+            "message_blacklist, metadata FROM clients"
+        ).fetchall():
+            metadata = self._metadata_from_row(row) or {}
+            # Drop any pre-existing metadata["message_blacklist"]
+            # from earlier migration runs that folded it in.
+            metadata.pop("message_blacklist", None)
+            for key in ("intent_blacklist", "skill_blacklist"):
+                raw = row[key]
+                if not raw:
+                    continue
+                try:
+                    legacy = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if legacy and key not in metadata:
+                    metadata[key] = list(legacy)
+            self.conn.execute(
+                "UPDATE clients SET intent_blacklist = NULL, "
+                "skill_blacklist = NULL, message_blacklist = NULL, "
+                "metadata = ? WHERE client_id = ?",
+                (self._metadata_to_json(metadata), int(row["client_id"])),
+            )
 
     def add_item(self, client: Client) -> bool:
         """
