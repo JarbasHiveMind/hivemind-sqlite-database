@@ -124,10 +124,8 @@ class SQLiteDB(AbstractDB):
 
         v1 -> v2: fold ``intent_blacklist`` / ``skill_blacklist`` column
         values into each row's ``metadata`` JSON dict, then NULL the
-        legacy columns. ``message_blacklist`` is **purged without
-        carry-forward** — the field was a design mistake from 2024-12-20
-        that contradicted the deny-by-default whitelist model and was
-        removed from the Client data model in HPM. The columns
+        legacy columns. ``message_blacklist`` is purged outright (the
+        field is not part of the ``Client`` data model). The columns
         themselves remain in the table (SQLite ``ALTER TABLE ... DROP
         COLUMN`` is unreliable on older versions) but are no longer
         written by ``add_item``.
