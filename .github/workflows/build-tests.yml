@@ -14,7 +14,11 @@ jobs:
       install_extras: ''
       test_path: 'tests'
       pr_comment: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-      # TEMPORARY: hivemind-plugin-manager#27 ships the SCHEMA_VERSION
-      # constant + migrate() hook this migration relies on. Drop once
-      # the next HPM release is on PyPI.
-      pre_install_pip: '"hivemind-plugin-manager @ git+https://github.com/JarbasHiveMind/hivemind-plugin-manager@feat/policy-plugins"'
+      # NOTE: intentionally no pre_install_pip pin to the unreleased
+      # hivemind-plugin-manager policy-plugins branch. The plugin is
+      # designed to tolerate older HPM gracefully (migrate() guards on
+      # getattr(AbstractDB, "SCHEMA_VERSION", 1) and skips when the
+      # constant is missing). Running CI against the PyPI HPM exercises
+      # exactly the partial-upgrade path operators may hit when they
+      # upgrade this plugin before HPM. If CI breaks here, the
+      # back-compat contract has regressed.
