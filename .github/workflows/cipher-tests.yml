@@ -1,24 +1,16 @@
-name: Tests
+name: Cipher Tests
+
+# Dedicated workflow for the [cipher] extra (sqlcipher3 + libsqlcipher-dev).
+# The shared build-tests.yml covers the unencrypted path on Python 3.10-3.14;
+# this one adds a single Python 3.11 run with sqlcipher installed so the
+# encrypted backend is exercised on every PR.
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
-    branches: ["**"]
+    branches: [dev, master, main]
+  workflow_dispatch:
 
 jobs:
-  test-plain:
-    name: "SQLite (no encryption)"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install -e ".[dev]" || pip install -e .
-      - run: pip install pytest
-      - run: pytest tests/test_sqlitedb.py -q -p no:ovoscope
-
   test-cipher:
     name: "SQLite + SQLCipher"
     runs-on: ubuntu-latest
