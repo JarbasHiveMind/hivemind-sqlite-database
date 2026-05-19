@@ -409,7 +409,20 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.crypto_key, "1234567890123456")
         self.assertEqual(r.password, "secret")
         self.assertFalse(r.can_escalate)
-        self.assertEqual(r.metadata, {"owner_id": "owner-123"})
+        # After SCHEMA_VERSION=2: legacy blacklist kwargs auto-migrate into
+        # ``Client.metadata`` via Client.__init__, so the round-tripped
+        # metadata also carries the blacklists alongside owner_id.
+        self.assertEqual(r.metadata, {
+            "owner_id": "owner-123",
+            "intent_blacklist": ["a:b"],
+            "skill_blacklist": ["c:d"],
+            "message_blacklist": ["e:f"],
+        })
+        # Property shims still surface skill/intent blacklists at the
+        # legacy attribute names (``message_blacklist`` has no shim — it
+        # was dropped from hivemind-core; access via metadata only).
+        self.assertEqual(r.skill_blacklist, ["c:d"])
+        self.assertEqual(r.intent_blacklist, ["a:b"])
 
 
 class TestSQLiteDBCommit(unittest.TestCase):
@@ -530,6 +543,151 @@ class TestSQLiteDBMissingCipher(unittest.TestCase):
                                     return_value=tmpdir):
                         db.__post_init__()
                 self.assertIn("sqlcipher3", str(ctx.exception))
+
+
+class TestSQLiteDBMigration(unittest.TestCase):
+    """v1 -> v2: legacy OVOS blacklist columns folded into metadata."""
+
+    def _make_v1_db_with_legacy_rows(self) -> SQLiteDB:
+        """Construct a DB in the v1 shape: legacy columns populated,
+        ``PRAGMA user_version`` left at 0 (the SQLite default)."""
+        db = object.__new__(SQLiteDB)
+        db.name = "clients"
+        db.subfolder = "hivemind-core"
+        db.conn = sqlite3.connect(":memory:", check_same_thread=False)
+        db.conn.row_factory = sqlite3.Row
+        db._write_lock = threading.Lock()
+        db._initialize_database()
+        # Write a row directly with legacy column data — bypass add_item
+        # which would NULL them.
+        db.conn.execute(
+            "INSERT INTO clients (client_id, api_key, intent_blacklist, "
+            "skill_blacklist, message_blacklist, allowed_types, metadata) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (7, "legacy-key",
+             '["i:1"]', '["s:1"]', '["m:1"]', '[]', '{"owner": "u"}'),
+        )
+        db.conn.commit()
+        return db
+
+    def test_pragma_user_version_starts_at_zero(self):
+        db = self._make_v1_db_with_legacy_rows()
+        stored = db.conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(stored, 0)
+
+    def test_migrate_folds_legacy_columns_into_metadata(self):
+        db = self._make_v1_db_with_legacy_rows()
+        db.migrate(from_version=1)
+        row = db.conn.execute(
+            "SELECT intent_blacklist, skill_blacklist, message_blacklist, "
+            "metadata FROM clients WHERE client_id = 7"
+        ).fetchone()
+        self.assertIsNone(row["intent_blacklist"])
+        self.assertIsNone(row["skill_blacklist"])
+        self.assertIsNone(row["message_blacklist"])
+        import json as _json
+        meta = _json.loads(row["metadata"])
+        self.assertEqual(meta["owner"], "u")
+        self.assertEqual(meta["intent_blacklist"], ["i:1"])
+        self.assertEqual(meta["skill_blacklist"], ["s:1"])
+        self.assertEqual(meta["message_blacklist"], ["m:1"])
+
+    def test_migrate_is_idempotent(self):
+        db = self._make_v1_db_with_legacy_rows()
+        db.migrate(from_version=1)
+        db.migrate(from_version=1)  # second run = no-op on already-migrated row
+        row = db.conn.execute(
+            "SELECT metadata FROM clients WHERE client_id = 7"
+        ).fetchone()
+        import json as _json
+        meta = _json.loads(row["metadata"])
+        self.assertEqual(meta["skill_blacklist"], ["s:1"])
+
+    def test_migrate_setdefault_does_not_clobber_explicit_metadata(self):
+        db = self._make_v1_db_with_legacy_rows()
+        # Explicit metadata.skill_blacklist takes precedence over the
+        # legacy column.
+        db.conn.execute(
+            "UPDATE clients SET metadata = ? WHERE client_id = 7",
+            ('{"owner": "u", "skill_blacklist": ["explicit"]}',),
+        )
+        db.migrate(from_version=1)
+        import json as _json
+        meta = _json.loads(db.conn.execute(
+            "SELECT metadata FROM clients WHERE client_id = 7"
+        ).fetchone()["metadata"])
+        self.assertEqual(meta["skill_blacklist"], ["explicit"])
+
+    def test_migrate_skips_when_already_at_target(self):
+        db = self._make_v1_db_with_legacy_rows()
+        # Stub: a from_version >= 2 should not touch the row.
+        db.migrate(from_version=2)
+        row = db.conn.execute(
+            "SELECT intent_blacklist FROM clients WHERE client_id = 7"
+        ).fetchone()
+        self.assertEqual(row["intent_blacklist"], '["i:1"]')
+
+    def test_maybe_migrate_bumps_user_version(self):
+        db = self._make_v1_db_with_legacy_rows()
+        db._maybe_migrate()
+        stored = db.conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(stored, 2)
+        # second invocation is a no-op
+        db._maybe_migrate()
+        self.assertEqual(
+            db.conn.execute("PRAGMA user_version").fetchone()[0], 2,
+        )
+
+    def test_post_init_runs_migration_on_existing_db(self):
+        """End-to-end: open a v1 DB file, observe v2 on-disk shape."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "hivemind-core", "clients.db")
+            os.makedirs(os.path.dirname(db_path))
+            # Seed a v1-shape DB with legacy column data.
+            seed = sqlite3.connect(db_path)
+            seed.execute("""
+                CREATE TABLE clients (
+                    client_id INTEGER PRIMARY KEY,
+                    api_key VARCHAR(255) NOT NULL,
+                    name VARCHAR(255),
+                    description VARCHAR(255),
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    last_seen REAL DEFAULT -1,
+                    intent_blacklist TEXT,
+                    skill_blacklist TEXT,
+                    message_blacklist TEXT,
+                    allowed_types TEXT,
+                    crypto_key VARCHAR(16),
+                    password TEXT,
+                    can_broadcast BOOLEAN DEFAULT TRUE,
+                    can_escalate BOOLEAN DEFAULT TRUE,
+                    can_propagate BOOLEAN DEFAULT TRUE,
+                    metadata TEXT
+                )
+            """)
+            seed.execute(
+                "INSERT INTO clients (client_id, api_key, skill_blacklist) "
+                "VALUES (?, ?, ?)",
+                (9, "k", '["legacy.skill"]'),
+            )
+            seed.commit()
+            seed.close()
+            # Now open it via SQLiteDB — __post_init__ should migrate.
+            import unittest.mock as mock
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+            self.assertEqual(
+                db.conn.execute("PRAGMA user_version").fetchone()[0], 2,
+            )
+            row = db.conn.execute(
+                "SELECT skill_blacklist, metadata FROM clients "
+                "WHERE client_id = 9"
+            ).fetchone()
+            self.assertIsNone(row["skill_blacklist"])
+            import json as _json
+            self.assertEqual(_json.loads(row["metadata"])["skill_blacklist"],
+                             ["legacy.skill"])
 
 
 if __name__ == "__main__":
