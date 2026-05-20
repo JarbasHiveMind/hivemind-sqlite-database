@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0a3](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a3) (2026-05-20)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.3.0a2...0.3.0a3)
+
+**Merged pull requests:**
+
+- ci: pass PYPI\_TOKEN explicitly, drop secrets:inherit elsewhere [\#33](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/33) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.3.0a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a2) (2026-05-18)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.3.0a1...0.3.0a2)
