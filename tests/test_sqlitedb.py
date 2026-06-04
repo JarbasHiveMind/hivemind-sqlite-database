@@ -783,5 +783,83 @@ class TestSQLiteDBGetClientByID(unittest.TestCase):
                 self.assertEqual(db.refresh(1).allowed_types, ["y"])
 
 
+class TestSQLiteDBSchemaV2RoundTrip(unittest.TestCase):
+    """v2 schema: allowed_types + skill/intent blacklists (in metadata) survive
+    add→search and add→refresh cycles without loss or mutation."""
+
+    def test_allowed_types_survives_round_trip(self):
+        db = make_db()
+        allowed = ["recognizer_loop:utterance", "speak:b64_audio"]
+        db.add_item(make_client(1, "k", allowed_types=allowed))
+        found = db.search_by_value("api_key", "k")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].allowed_types, allowed)
+
+    def test_skill_blacklist_in_metadata_survives_round_trip(self):
+        db = make_db()
+        c = make_client(2, "k2", metadata={"skill_blacklist": ["my.skill"]})
+        db.add_item(c)
+        found = db.search_by_value("api_key", "k2")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].skill_blacklist, ["my.skill"])
+        self.assertEqual(found[0].metadata["skill_blacklist"], ["my.skill"])
+
+    def test_intent_blacklist_in_metadata_survives_round_trip(self):
+        db = make_db()
+        c = make_client(3, "k3", metadata={"intent_blacklist": ["my.skill:action"]})
+        db.add_item(c)
+        found = db.search_by_value("api_key", "k3")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].intent_blacklist, ["my.skill:action"])
+        self.assertEqual(found[0].metadata["intent_blacklist"], ["my.skill:action"])
+
+    def test_message_blacklist_not_present_in_stored_record(self):
+        """message_blacklist must not appear in a freshly-stored record."""
+        db = make_db()
+        db.add_item(make_client(4, "k4"))
+        row = db.conn.execute(
+            "SELECT message_blacklist, metadata FROM clients WHERE client_id = 4"
+        ).fetchone()
+        self.assertIsNone(row["message_blacklist"])
+        import json as _json
+        meta = _json.loads(row["metadata"] or "{}")
+        self.assertNotIn("message_blacklist", meta)
+
+    def test_v1_row_reads_cleanly_forward_compat(self):
+        """A v1 row (legacy columns populated) must deserialize via
+        _row_to_client without crashing."""
+        db = make_db()
+        db.conn.execute(
+            "INSERT INTO clients (client_id, api_key, skill_blacklist, "
+            "intent_blacklist, message_blacklist, allowed_types, metadata) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (5, "k5", '["old.skill"]', '[]', '["drop.me"]',
+             '["recognizer_loop:utterance"]', "{}"),
+        )
+        db.conn.commit()
+        found = db.search_by_value("api_key", "k5")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].api_key, "k5")
+        self.assertEqual(found[0].allowed_types, ["recognizer_loop:utterance"])
+
+    def test_refresh_returns_v2_fields(self):
+        db = make_db()
+        import unittest.mock as mock
+        import tempfile
+        import os
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                filedb = SQLiteDB(name="clients", subfolder="hivemind-core")
+            allowed = ["recognizer_loop:utterance"]
+            meta = {"skill_blacklist": ["s:1"], "intent_blacklist": ["i:1"]}
+            filedb.add_item(make_client(6, "k6", allowed_types=allowed, metadata=meta))
+            got = filedb.refresh(6)
+        self.assertIsNotNone(got)
+        self.assertEqual(got.allowed_types, allowed)
+        self.assertEqual(got.skill_blacklist, ["s:1"])
+        self.assertEqual(got.intent_blacklist, ["i:1"])
+
+
 if __name__ == "__main__":
     unittest.main()
