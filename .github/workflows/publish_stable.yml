@@ -9,7 +9,6 @@ jobs:
     uses: OpenVoiceOS/gh-automations/.github/workflows/publish-stable.yml@dev
     secrets:
       PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-      MATRIX_TOKEN: ${{ secrets.MATRIX_TOKEN }}
     with:
       branch: 'master'
       version_file: 'hivemind_sqlite_database/version.py'

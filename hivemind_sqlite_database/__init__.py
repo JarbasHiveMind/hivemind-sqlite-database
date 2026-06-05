@@ -108,7 +108,10 @@ class SQLiteDB(AbstractDB):
         """
         target = getattr(AbstractDB, "SCHEMA_VERSION", 1)
         stored = self.conn.execute("PRAGMA user_version").fetchone()[0]
-        self._check_forward_compat(int(stored))
+        # Tolerate older HPM that predates the forward-compat guard, the
+        # same way SCHEMA_VERSION is read defensively above.
+        if hasattr(self, "_check_forward_compat"):
+            self._check_forward_compat(int(stored))
         if stored < target:
             LOG.info("SQLiteDB: migrating schema v%d -> v%d", stored, target)
             # Migrate row rewrites and the user_version bump share one

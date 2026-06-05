@@ -1,17 +1,16 @@
 name: Release Alpha and Propose Stable
 
 on:
-  workflow_dispatch:
   pull_request:
     types: [closed]
     branches: [dev]
+  workflow_dispatch:
 
 jobs:
   publish_alpha:
     uses: OpenVoiceOS/gh-automations/.github/workflows/publish-alpha.yml@dev
     secrets:
       PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-      MATRIX_TOKEN: ${{ secrets.MATRIX_TOKEN }}
     with:
       branch: 'dev'
       base_branch: 'master'
