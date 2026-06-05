@@ -65,6 +65,7 @@ class SQLiteDB(AbstractDB):
         self.conn.execute("PRAGMA journal_mode=WAL")
         self._write_lock = threading.Lock()
         self._initialize_database()
+        self._maybe_migrate()
 
     def _initialize_database(self):
         """Initialize the database schema."""
@@ -98,6 +99,81 @@ class SQLiteDB(AbstractDB):
             if "metadata" not in columns:
                 self.conn.execute("ALTER TABLE clients ADD COLUMN metadata TEXT")
 
+    def _maybe_migrate(self) -> None:
+        """Run schema migration if the on-disk version is behind ``SCHEMA_VERSION``.
+
+        Persisted version lives in SQLite's ``PRAGMA user_version`` (a
+        signed integer slot reserved exactly for this use case).
+        Tolerates older HPM versions that predate ``SCHEMA_VERSION``.
+        """
+        target = getattr(AbstractDB, "SCHEMA_VERSION", 1)
+        stored = self.conn.execute("PRAGMA user_version").fetchone()[0]
+        # Tolerate older HPM that predates the forward-compat guard, the
+        # same way SCHEMA_VERSION is read defensively above.
+        if hasattr(self, "_check_forward_compat"):
+            self._check_forward_compat(int(stored))
+        if stored < target:
+            LOG.info("SQLiteDB: migrating schema v%d -> v%d", stored, target)
+            # Migrate row rewrites and the user_version bump share one
+            # transaction so a crash never leaves the DB at "migrated rows
+            # but stale sentinel" or vice versa.
+            with self._write_lock, self.conn:
+                self._migrate_locked(from_version=stored)
+                self.conn.execute(f"PRAGMA user_version = {int(target)}")
+
+    def migrate(self, from_version: int) -> None:
+        """Migrate on-disk rows to the current ``SCHEMA_VERSION``.
+
+        Idempotent and crash-safe: a partial migration re-run produces the
+        same final state because the merge is ``setdefault``-style (never
+        clobbers explicit metadata values) and the legacy columns are
+        unconditionally NULLed in the same transaction.
+
+        v1 -> v2: fold ``intent_blacklist`` / ``skill_blacklist`` column
+        values into each row's ``metadata`` JSON dict, then NULL the
+        legacy columns. ``message_blacklist`` is purged outright (the
+        field is not part of the ``Client`` data model). The columns
+        themselves remain in the table (SQLite ``ALTER TABLE ... DROP
+        COLUMN`` is unreliable on older versions) but are no longer
+        written by ``add_item``.
+        """
+        if from_version >= 2:
+            return
+        with self._write_lock, self.conn:
+            self._migrate_locked(from_version=from_version)
+
+    def _migrate_locked(self, from_version: int) -> None:
+        """Inner migration body — assumes the caller already holds
+        ``_write_lock`` and is inside a ``with self.conn`` transaction.
+        Lets ``_maybe_migrate`` bundle the version-sentinel bump into the
+        same transaction as the row rewrites."""
+        if from_version >= 2:
+            return
+        for row in self.conn.execute(
+            "SELECT client_id, intent_blacklist, skill_blacklist, "
+            "message_blacklist, metadata FROM clients"
+        ).fetchall():
+            metadata = self._metadata_from_row(row) or {}
+            # Drop any pre-existing metadata["message_blacklist"]
+            # from earlier migration runs that folded it in.
+            metadata.pop("message_blacklist", None)
+            for key in ("intent_blacklist", "skill_blacklist"):
+                raw = row[key]
+                if not raw:
+                    continue
+                try:
+                    legacy = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if legacy and key not in metadata:
+                    metadata[key] = list(legacy)
+            self.conn.execute(
+                "UPDATE clients SET intent_blacklist = NULL, "
+                "skill_blacklist = NULL, message_blacklist = NULL, "
+                "metadata = ? WHERE client_id = ?",
+                (self._metadata_to_json(metadata), int(row["client_id"])),
+            )
+
     def add_item(self, client: Client) -> bool:
         """
         Add a client to the SQLite database.
@@ -121,9 +197,14 @@ class SQLiteDB(AbstractDB):
                 """, (
                     client.client_id, client.api_key, client.name, client.description,
                     client.is_admin, client.last_seen,
-                    json.dumps(client.intent_blacklist),
-                    json.dumps(client.skill_blacklist),
-                    json.dumps(client.message_blacklist),
+                    # Legacy OVOS blacklist columns are no longer written —
+                    # the data lives in ``Client.metadata`` (see SCHEMA_VERSION
+                    # v2 migration). Columns kept in the table for back-compat
+                    # with older readers; NULLed on write so the disk stays
+                    # clean.
+                    None,
+                    None,
+                    None,
                     json.dumps(client.allowed_types),
                     client.crypto_key, client.password,
                     client.can_broadcast, client.can_escalate, client.can_propagate,
@@ -157,6 +238,27 @@ class SQLiteDB(AbstractDB):
             LOG.error(f"Failed to search clients in SQLite: {e}")
             return []
 
+    def get_client_by_id(self, client_id: int) -> Optional[Client]:
+        """Fetch a single client row by primary key.
+
+        Targeted lookup used by :meth:`refresh` on the admission hot
+        path — avoids the full ``search_by_value`` fallback. Returns
+        ``None`` if the row does not exist or on any DB error.
+        """
+        if client_id is None:
+            return None
+        try:
+            cur = self.conn.execute(
+                "SELECT * FROM clients WHERE client_id = ?", (int(client_id),),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return self._row_to_client(row)
+        except (sqlite3.Error, TypeError, ValueError) as e:
+            LOG.error(f"Failed to fetch client {client_id} from SQLite: {e}")
+            return None
+
     def __len__(self) -> int:
         """Get the number of clients in the database."""
         try:
@@ -189,26 +291,44 @@ class SQLiteDB(AbstractDB):
 
     @staticmethod
     def _row_to_client(row: sqlite3.Row) -> Client:
-        """Convert a database row to a Client instance."""
-        kwargs = {
-            "client_id": int(row["client_id"]),
-            "api_key": row["api_key"],
-            "name": row["name"],
-            "description": row["description"],
-            "is_admin": bool(row["is_admin"]),
-            "last_seen": row["last_seen"],
-            "intent_blacklist": json.loads(row["intent_blacklist"] or "[]"),
-            "skill_blacklist": json.loads(row["skill_blacklist"] or "[]"),
-            "message_blacklist": json.loads(row["message_blacklist"] or "[]"),
-            "allowed_types": json.loads(row["allowed_types"] or "[]"),
-            "crypto_key": row["crypto_key"],
-            "password": row["password"],
-            "can_broadcast": bool(row["can_broadcast"]),
-            "can_escalate": bool(row["can_escalate"]),
-            "can_propagate": bool(row["can_propagate"]),
-            "metadata": SQLiteDB._metadata_from_row(row),
-        }
-        return Client(**kwargs)
+        """Convert a database row to a Client instance.
+
+        Legacy OVOS blacklist columns are no longer passed as kwargs to
+        ``Client(...)`` — after the v2 migration they are NULL on disk
+        and the canonical data lives in ``metadata``. If a row predates
+        migration (e.g. read by an older plugin version that didn't
+        migrate, then read again here), the values are folded into
+        ``metadata`` locally as a defensive fallback.
+        """
+        metadata = SQLiteDB._metadata_from_row(row) or {}
+        # message_blacklist was removed from the Client data model — drop
+        # any residual metadata key from earlier migrations.
+        metadata.pop("message_blacklist", None)
+        for key in ("intent_blacklist", "skill_blacklist"):
+            raw = row[key] if key in row.keys() else None
+            if not raw or key in metadata:
+                continue
+            try:
+                legacy = json.loads(raw)
+            except (TypeError, ValueError):
+                continue
+            if legacy:
+                metadata[key] = list(legacy)
+        return Client(
+            client_id=int(row["client_id"]),
+            api_key=row["api_key"],
+            name=row["name"],
+            description=row["description"],
+            is_admin=bool(row["is_admin"]),
+            last_seen=row["last_seen"],
+            allowed_types=json.loads(row["allowed_types"] or "[]"),
+            crypto_key=row["crypto_key"],
+            password=row["password"],
+            can_broadcast=bool(row["can_broadcast"]),
+            can_escalate=bool(row["can_escalate"]),
+            can_propagate=bool(row["can_propagate"]),
+            metadata=metadata,
+        )
 
     @staticmethod
     def _metadata_to_json(metadata: object) -> str:

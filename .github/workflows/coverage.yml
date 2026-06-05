@@ -11,6 +11,7 @@ jobs:
     with:
       python_version: '3.11'
       coverage_source: 'hivemind_sqlite_database'
+      pre_install_pip: '"hivemind-plugin-manager==0.6.0a1"'
       test_path: 'tests/'
       install_extras: ''
       min_coverage: 0

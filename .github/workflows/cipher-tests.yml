@@ -24,5 +24,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libsqlcipher-dev
       - run: pip install -e ".[cipher]"
-      - run: pip install pytest
+      # schema-v2 features (migrate, refresh, _check_forward_compat) ship in the 0.6.0a1 prerelease
+      - run: pip install "hivemind-plugin-manager==0.6.0a1" pytest
       - run: pytest tests/test_sqlitedb.py -q -p no:ovoscope

@@ -388,7 +388,6 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
             last_seen=1234567890.0,
             intent_blacklist=["a:b"],
             skill_blacklist=["c:d"],
-            message_blacklist=["e:f"],
             allowed_types=["recognizer_loop:utterance"],
             crypto_key="1234567890123456",
             password="secret",
@@ -409,7 +408,18 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.crypto_key, "1234567890123456")
         self.assertEqual(r.password, "secret")
         self.assertFalse(r.can_escalate)
-        self.assertEqual(r.metadata, {"owner_id": "owner-123"})
+        # After SCHEMA_VERSION=2: legacy skill/intent kwargs auto-migrate
+        # into ``Client.metadata`` via Client.__init__. message_blacklist
+        # is gone from the data model — not accepted as a kwarg and not
+        # carried in metadata.
+        self.assertEqual(r.metadata, {
+            "owner_id": "owner-123",
+            "intent_blacklist": ["a:b"],
+            "skill_blacklist": ["c:d"],
+        })
+        # Property shims surface skill/intent blacklists at legacy names.
+        self.assertEqual(r.skill_blacklist, ["c:d"])
+        self.assertEqual(r.intent_blacklist, ["a:b"])
 
 
 class TestSQLiteDBCommit(unittest.TestCase):
@@ -530,6 +540,325 @@ class TestSQLiteDBMissingCipher(unittest.TestCase):
                                     return_value=tmpdir):
                         db.__post_init__()
                 self.assertIn("sqlcipher3", str(ctx.exception))
+
+
+class TestSQLiteDBMigration(unittest.TestCase):
+    """v1 -> v2: legacy OVOS blacklist columns folded into metadata."""
+
+    def _make_v1_db_with_legacy_rows(self) -> SQLiteDB:
+        """Construct a DB in the v1 shape: legacy columns populated,
+        ``PRAGMA user_version`` left at 0 (the SQLite default)."""
+        db = object.__new__(SQLiteDB)
+        db.name = "clients"
+        db.subfolder = "hivemind-core"
+        db.conn = sqlite3.connect(":memory:", check_same_thread=False)
+        db.conn.row_factory = sqlite3.Row
+        db._write_lock = threading.Lock()
+        db._initialize_database()
+        # Write a row directly with legacy column data — bypass add_item
+        # which would NULL them.
+        db.conn.execute(
+            "INSERT INTO clients (client_id, api_key, intent_blacklist, "
+            "skill_blacklist, message_blacklist, allowed_types, metadata) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (7, "legacy-key",
+             '["i:1"]', '["s:1"]', '["m:1"]', '[]', '{"owner": "u"}'),
+        )
+        db.conn.commit()
+        return db
+
+    def test_pragma_user_version_starts_at_zero(self):
+        db = self._make_v1_db_with_legacy_rows()
+        stored = db.conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(stored, 0)
+
+    def test_migrate_folds_legacy_columns_into_metadata(self):
+        db = self._make_v1_db_with_legacy_rows()
+        db.migrate(from_version=1)
+        row = db.conn.execute(
+            "SELECT intent_blacklist, skill_blacklist, message_blacklist, "
+            "metadata FROM clients WHERE client_id = 7"
+        ).fetchone()
+        self.assertIsNone(row["intent_blacklist"])
+        self.assertIsNone(row["skill_blacklist"])
+        self.assertIsNone(row["message_blacklist"])
+        import json as _json
+        meta = _json.loads(row["metadata"])
+        self.assertEqual(meta["owner"], "u")
+        self.assertEqual(meta["intent_blacklist"], ["i:1"])
+        self.assertEqual(meta["skill_blacklist"], ["s:1"])
+        # message_blacklist is purged outright, NOT folded into metadata.
+        self.assertNotIn("message_blacklist", meta)
+
+    def test_migrate_purges_residual_metadata_message_blacklist(self):
+        """An older plugin version may have folded message_blacklist
+        into metadata before HPM removed the field. The newer migrate()
+        must purge it on re-run, leaving the disk clean."""
+        db = self._make_v1_db_with_legacy_rows()
+        # Seed an already-half-migrated row: legacy columns NULL, but
+        # metadata still carries the old key from the prior migration.
+        db.conn.execute(
+            "UPDATE clients SET intent_blacklist = NULL, "
+            "skill_blacklist = NULL, message_blacklist = NULL, "
+            "metadata = ? WHERE client_id = 7",
+            ('{"owner": "u", "message_blacklist": ["m:1"]}',),
+        )
+        db.conn.commit()
+
+        db.migrate(from_version=1)
+
+        import json as _json
+        meta = _json.loads(db.conn.execute(
+            "SELECT metadata FROM clients WHERE client_id = 7"
+        ).fetchone()["metadata"])
+        self.assertNotIn("message_blacklist", meta)
+        self.assertEqual(meta["owner"], "u")
+
+    def test_migrate_is_idempotent(self):
+        db = self._make_v1_db_with_legacy_rows()
+        db.migrate(from_version=1)
+        db.migrate(from_version=1)  # second run = no-op on already-migrated row
+        row = db.conn.execute(
+            "SELECT metadata FROM clients WHERE client_id = 7"
+        ).fetchone()
+        import json as _json
+        meta = _json.loads(row["metadata"])
+        self.assertEqual(meta["skill_blacklist"], ["s:1"])
+
+    def test_migrate_setdefault_does_not_clobber_explicit_metadata(self):
+        db = self._make_v1_db_with_legacy_rows()
+        # Explicit metadata.skill_blacklist takes precedence over the
+        # legacy column.
+        db.conn.execute(
+            "UPDATE clients SET metadata = ? WHERE client_id = 7",
+            ('{"owner": "u", "skill_blacklist": ["explicit"]}',),
+        )
+        db.migrate(from_version=1)
+        import json as _json
+        meta = _json.loads(db.conn.execute(
+            "SELECT metadata FROM clients WHERE client_id = 7"
+        ).fetchone()["metadata"])
+        self.assertEqual(meta["skill_blacklist"], ["explicit"])
+
+    def test_migrate_skips_when_already_at_target(self):
+        db = self._make_v1_db_with_legacy_rows()
+        # Stub: a from_version >= 2 should not touch the row.
+        db.migrate(from_version=2)
+        row = db.conn.execute(
+            "SELECT intent_blacklist FROM clients WHERE client_id = 7"
+        ).fetchone()
+        self.assertEqual(row["intent_blacklist"], '["i:1"]')
+
+    def test_maybe_migrate_bumps_user_version(self):
+        db = self._make_v1_db_with_legacy_rows()
+        db._maybe_migrate()
+        stored = db.conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(stored, 2)
+        # second invocation is a no-op
+        db._maybe_migrate()
+        self.assertEqual(
+            db.conn.execute("PRAGMA user_version").fetchone()[0], 2,
+        )
+
+    def test_post_init_runs_migration_on_existing_db(self):
+        """End-to-end: open a v1 DB file, observe v2 on-disk shape."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "hivemind-core", "clients.db")
+            os.makedirs(os.path.dirname(db_path))
+            # Seed a v1-shape DB with legacy column data.
+            seed = sqlite3.connect(db_path)
+            seed.execute("""
+                CREATE TABLE clients (
+                    client_id INTEGER PRIMARY KEY,
+                    api_key VARCHAR(255) NOT NULL,
+                    name VARCHAR(255),
+                    description VARCHAR(255),
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    last_seen REAL DEFAULT -1,
+                    intent_blacklist TEXT,
+                    skill_blacklist TEXT,
+                    message_blacklist TEXT,
+                    allowed_types TEXT,
+                    crypto_key VARCHAR(16),
+                    password TEXT,
+                    can_broadcast BOOLEAN DEFAULT TRUE,
+                    can_escalate BOOLEAN DEFAULT TRUE,
+                    can_propagate BOOLEAN DEFAULT TRUE,
+                    metadata TEXT
+                )
+            """)
+            seed.execute(
+                "INSERT INTO clients (client_id, api_key, skill_blacklist) "
+                "VALUES (?, ?, ?)",
+                (9, "k", '["legacy.skill"]'),
+            )
+            seed.commit()
+            seed.close()
+            # Now open it via SQLiteDB — __post_init__ should migrate.
+            import unittest.mock as mock
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+            self.assertEqual(
+                db.conn.execute("PRAGMA user_version").fetchone()[0], 2,
+            )
+            row = db.conn.execute(
+                "SELECT skill_blacklist, metadata FROM clients "
+                "WHERE client_id = 9"
+            ).fetchone()
+            self.assertIsNone(row["skill_blacklist"])
+            import json as _json
+            self.assertEqual(_json.loads(row["metadata"])["skill_blacklist"],
+                             ["legacy.skill"])
+
+
+class TestSQLiteDBEmptyDatabaseMigration(unittest.TestCase):
+    """A fresh DB (no rows, user_version=0) must still bump to the
+    current SCHEMA_VERSION on first open. Validates the cotransactional
+    migrate + sentinel write."""
+
+    def test_empty_new_db_bumps_user_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            import unittest.mock as mock
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+            stored = db.conn.execute("PRAGMA user_version").fetchone()[0]
+            from hivemind_plugin_manager.database import AbstractDB
+            target = getattr(AbstractDB, "SCHEMA_VERSION", 1)
+            self.assertEqual(stored, target)
+            # No rows in the clients table — migration must be a no-op
+            # over rows but the sentinel still moves.
+            count = db.conn.execute(
+                "SELECT COUNT(*) FROM clients"
+            ).fetchone()[0]
+            self.assertEqual(count, 0)
+
+
+class TestSQLiteDBForwardCompat(unittest.TestCase):
+    """A DB whose ``user_version`` is newer than this backend supports
+    must fail loudly with a RuntimeError instead of silently downgrading.
+    """
+
+    def test_forward_version_raises_runtime_error(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+                db.conn.execute("PRAGMA user_version = 999")
+                db.conn.commit()
+                db.conn.close()
+                with self.assertRaises(RuntimeError) as ctx:
+                    SQLiteDB(name="clients", subfolder="hivemind-core")
+                self.assertIn("999", str(ctx.exception))
+
+
+class TestSQLiteDBGetClientByID(unittest.TestCase):
+    def test_get_client_by_id_returns_row(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+                from hivemind_plugin_manager.database import Client
+                db.add_item(Client(client_id=42, api_key="k", name="alice"))
+                got = db.get_client_by_id(42)
+                self.assertIsNotNone(got)
+                self.assertEqual(got.client_id, 42)
+                self.assertIsNone(db.get_client_by_id(999))
+
+    def test_refresh_picks_up_updates(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core")
+                from hivemind_plugin_manager.database import Client
+                db.add_item(Client(client_id=1, api_key="k", name="a",
+                                   allowed_types=["x"]))
+                self.assertEqual(db.refresh(1).allowed_types, ["x"])
+                db.add_item(Client(client_id=1, api_key="k", name="a",
+                                   allowed_types=["y"]))
+                self.assertEqual(db.refresh(1).allowed_types, ["y"])
+
+
+class TestSQLiteDBSchemaV2RoundTrip(unittest.TestCase):
+    """v2 schema: allowed_types + skill/intent blacklists (in metadata) survive
+    add→search and add→refresh cycles without loss or mutation."""
+
+    def test_allowed_types_survives_round_trip(self):
+        db = make_db()
+        allowed = ["recognizer_loop:utterance", "speak:b64_audio"]
+        db.add_item(make_client(1, "k", allowed_types=allowed))
+        found = db.search_by_value("api_key", "k")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].allowed_types, allowed)
+
+    def test_skill_blacklist_in_metadata_survives_round_trip(self):
+        db = make_db()
+        c = make_client(2, "k2", metadata={"skill_blacklist": ["my.skill"]})
+        db.add_item(c)
+        found = db.search_by_value("api_key", "k2")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].skill_blacklist, ["my.skill"])
+        self.assertEqual(found[0].metadata["skill_blacklist"], ["my.skill"])
+
+    def test_intent_blacklist_in_metadata_survives_round_trip(self):
+        db = make_db()
+        c = make_client(3, "k3", metadata={"intent_blacklist": ["my.skill:action"]})
+        db.add_item(c)
+        found = db.search_by_value("api_key", "k3")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].intent_blacklist, ["my.skill:action"])
+        self.assertEqual(found[0].metadata["intent_blacklist"], ["my.skill:action"])
+
+    def test_message_blacklist_not_present_in_stored_record(self):
+        """message_blacklist must not appear in a freshly-stored record."""
+        db = make_db()
+        db.add_item(make_client(4, "k4"))
+        row = db.conn.execute(
+            "SELECT message_blacklist, metadata FROM clients WHERE client_id = 4"
+        ).fetchone()
+        self.assertIsNone(row["message_blacklist"])
+        import json as _json
+        meta = _json.loads(row["metadata"] or "{}")
+        self.assertNotIn("message_blacklist", meta)
+
+    def test_v1_row_reads_cleanly_forward_compat(self):
+        """A v1 row (legacy columns populated) must deserialize via
+        _row_to_client without crashing."""
+        db = make_db()
+        db.conn.execute(
+            "INSERT INTO clients (client_id, api_key, skill_blacklist, "
+            "intent_blacklist, message_blacklist, allowed_types, metadata) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (5, "k5", '["old.skill"]', '[]', '["drop.me"]',
+             '["recognizer_loop:utterance"]', "{}"),
+        )
+        db.conn.commit()
+        found = db.search_by_value("api_key", "k5")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].api_key, "k5")
+        self.assertEqual(found[0].allowed_types, ["recognizer_loop:utterance"])
+
+    def test_refresh_returns_v2_fields(self):
+        db = make_db()
+        import unittest.mock as mock
+        import tempfile
+        import os
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("hivemind_sqlite_database.xdg_data_home",
+                            return_value=tmp):
+                filedb = SQLiteDB(name="clients", subfolder="hivemind-core")
+            allowed = ["recognizer_loop:utterance"]
+            meta = {"skill_blacklist": ["s:1"], "intent_blacklist": ["i:1"]}
+            filedb.add_item(make_client(6, "k6", allowed_types=allowed, metadata=meta))
+            got = filedb.refresh(6)
+        self.assertIsNotNone(got)
+        self.assertEqual(got.allowed_types, allowed)
+        self.assertEqual(got.skill_blacklist, ["s:1"])
+        self.assertEqual(got.intent_blacklist, ["i:1"])
 
 
 if __name__ == "__main__":
