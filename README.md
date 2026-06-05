@@ -1,57 +1,73 @@
-# HiveMind SQLite Database
+# hivemind-sqlite-database
 
-SQLite database plugin for [hivemind-core](https://github.com/JarbasHiveMind/HiveMind-core).
+SQLite database backend for [hivemind-core](https://github.com/JarbasHiveMind/HiveMind-core).
 
-Implements the `AbstractDB` interface via `hivemind-plugin-manager` and stores HiveMind
-client records (API keys, crypto keys, access-control lists) in a local SQLite file.
+Implements the [`hivemind-plugin-manager`](https://github.com/JarbasHiveMind/hivemind-plugin-manager)
+`AbstractDB` contract on top of Python's built-in `sqlite3` module (or `sqlcipher3` when
+encryption is enabled). Client records (API keys, crypto keys, access-control lists) are stored in
+a local `.db` file with WAL journal mode for safe multi-reader, single-writer access.
 
-## Installation
+**This is the default database backend for fresh hivemind-core installations.**
+
+## Where it fits
+
+```
+hivemind-core
+  └── hivemind-plugin-manager  (DatabaseFactory loads plugins by entry-point)
+        └── hivemind-sqlite-database  ← this repo
+              └── sqlite3 (stdlib) or sqlcipher3 (optional encryption)
+```
+
+The plugin registers under the `hivemind.database` entry-point group as
+`hivemind-sqlite-db-plugin`. `hivemind-core` loads it automatically when `server.json`
+sets `database.module` to this name.
+
+## Install
 
 ```bash
 pip install hivemind-sqlite-database
 ```
 
-### With encryption support (SQLCipher)
+### With encryption support (SQLCipher / AES-256)
 
 ```bash
-# 1. Install the SQLCipher system library
-#    Debian/Ubuntu:
+# Debian/Ubuntu — system library
 sudo apt install libsqlcipher0
 
-# 2. Install the Python binding via the optional extra
+# Python binding
 pip install "hivemind-sqlite-database[cipher]"
 ```
 
-> The `sqlcipher3` wheel on PyPI ships its own libsqlcipher for x86_64 Linux, so the
-> `apt` step may be optional on that platform.  On ARM or Alpine you must build from
-> source and will need the system library.
+> The `sqlcipher3` wheel on PyPI ships its own `libsqlcipher` for x86_64 Linux,
+> so the `apt` step may be optional on that platform. On ARM or Alpine you must
+> build from source and need the system library.
 
-## Usage
+## Quickstart
 
-### Plain (unencrypted) database — default
+Add or update the `"database"` block in `~/.config/hivemind-core/server.json`:
 
-```python
-from hivemind_sqlite_database import SQLiteDB
-
-db = SQLiteDB()           # stores data in XDG_DATA_HOME/hivemind-core/clients.db
+```json
+{
+  "database": {
+    "module": "hivemind-sqlite-db-plugin",
+    "hivemind-sqlite-db-plugin": {
+      "name": "clients",
+      "subfolder": "hivemind-core"
+    }
+  }
+}
 ```
 
-### Encrypted database (SQLCipher / AES-256)
+Then start (or restart) hivemind-core:
 
-```python
-from hivemind_sqlite_database import SQLiteDB
-
-db = SQLiteDB(password="your-strong-passphrase")
+```bash
+hivemind-core listen
 ```
 
-Pass the same `password` every time you open the database.  The encryption is
-transparent — all existing methods (`add_item`, `search_by_value`, etc.) work
-identically.
+The database file is created automatically at
+`$XDG_DATA_HOME/hivemind-core/clients.db` (typically `~/.local/share/hivemind-core/clients.db`).
 
-> **Data-loss warning**: There is no password recovery.  If you lose the passphrase
-> the database is permanently unrecoverable.  Back up your passphrase securely.
-
-### hivemind-core configuration
+### Optional encryption (SQLCipher)
 
 ```json
 {
@@ -66,11 +82,41 @@ identically.
 }
 ```
 
-Leave `"password"` out (or set it to `null`) to use an unencrypted database.
+> **Warning**: There is no password recovery. If you lose the passphrase the database
+> is permanently unrecoverable. Back up the passphrase securely.
 
-## Notes
+## Configuration reference
 
-- An encrypted database cannot be opened by the plain `sqlite3` CLI or stdlib module.
-- A plaintext database cannot be opened as encrypted.  There is no automatic migration.
-- The `password` field maps directly to SQLCipher's `PRAGMA key`.
-- WAL journal mode is enabled for both encrypted and unencrypted databases.
+| Key | Default | Description |
+|---|---|---|
+| `name` | `"clients"` | Base filename (without extension). The database is `<name>.db`. |
+| `subfolder` | `"hivemind-core"` | XDG subfolder under `$XDG_DATA_HOME`. |
+| `password` | `null` | When set (non-empty string), opens the database with SQLCipher AES-256 encryption. Requires the `[cipher]` extra. |
+
+The full path resolves to `$XDG_DATA_HOME/<subfolder>/<name>.db`,
+typically `~/.local/share/hivemind-core/clients.db`.
+
+## Schema migration
+
+On first open after an upgrade, `SQLiteDB` runs an automatic schema migration.
+Version tracking uses SQLite's built-in `PRAGMA user_version` — no sibling files.
+
+The v1→v2 migration folds legacy `intent_blacklist` / `skill_blacklist` column
+data into each row's `metadata` JSON field and NULLs the legacy columns.
+`message_blacklist` is purged outright.
+
+The migration is idempotent, crash-safe, and transactional — the row rewrites
+and the `user_version` bump happen in one transaction.
+
+To migrate an existing installation to this backend, use hivemind-core's built-in
+command:
+
+```bash
+hivemind-core migrate-db
+```
+
+## Docs
+
+- [docs/architecture.md](docs/architecture.md) — internals, WAL mode, schema, migration
+- [docs/configuration.md](docs/configuration.md) — full configuration reference
+- [docs/operations.md](docs/operations.md) — file locations, backup, encryption, authoring a plugin
