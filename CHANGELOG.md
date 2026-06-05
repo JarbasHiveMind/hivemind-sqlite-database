@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.0a1) (2026-06-05)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.3.0a4...0.4.0a1)
+
+**Merged pull requests:**
+
+- feat\(db\): schema v2 migration — fold legacy blacklist columns into metadata [\#32](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/32) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.3.0a4](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a4) (2026-06-05)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.3.0a3...0.3.0a4)
