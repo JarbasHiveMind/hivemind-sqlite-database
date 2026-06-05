@@ -19,6 +19,12 @@ from unittest import mock
 
 import pytest
 
+# Cross-repo deps absent from the DB plugin's own CI — skip the whole module
+# there; it runs in the integration env that pins the policy stack + hivescope.
+pytest.importorskip("hivemind_core.policy")
+pytest.importorskip("hivemind_ovos_agent_plugin")
+pytest.importorskip("hivescope")
+
 def _hivescope_supports_db_injection() -> bool:
     """The master-side real-DB injection needs hivescope's MasterNode.create
     to accept a ``db=`` argument (added in hivescope > 0.3.0a1)."""
