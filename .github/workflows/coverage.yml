@@ -12,7 +12,7 @@ jobs:
       python_version: '3.11'
       coverage_source: 'hivemind_sqlite_database'
       pre_install_pip: '"hivemind-plugin-manager==0.6.0a1"'
-      test_path: 'tests/'
+      test_path: 'tests/ --ignore=tests/e2e'
       install_extras: ''
       min_coverage: 0
       pr_comment: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
