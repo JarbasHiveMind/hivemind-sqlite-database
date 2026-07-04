@@ -10,7 +10,6 @@ jobs:
     uses: OpenVoiceOS/gh-automations/.github/workflows/build-tests.yml@dev
     with:
       python_versions: '["3.10", "3.11", "3.12", "3.13", "3.14"]'
-      install_extras: ''
-      pre_install_pip: '"hivemind-plugin-manager==0.6.0a1"'
+      install_extras: 'test'
       test_path: 'tests'
       pr_comment: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
