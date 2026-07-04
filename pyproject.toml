@@ -18,6 +18,11 @@ dependencies = [
 
 [project.optional-dependencies]
 cipher = ["sqlcipher3"]
+test = [
+    "pytest",
+    "hivescope>=0.5.2a1",
+    "hivemind-plugin-manager>=0.7.1a1",
+]
 
 [project.urls]
 Homepage = "https://github.com/JarbasHiveMind/hivemind-sqlite-database"
