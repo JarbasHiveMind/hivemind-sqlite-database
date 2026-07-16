@@ -1,10 +1,14 @@
 name: Release Alpha and Propose Stable
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
     branches: [dev]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   publish_alpha:
@@ -20,5 +24,4 @@ jobs:
       changelog_max_issues: 100
       publish_pypi: true
       propose_release: true
-      notify_matrix: true
-      matrix_channel: '!jImYhOcJWVpvCRsDjc:matrix.org'
+      notify_matrix: false
