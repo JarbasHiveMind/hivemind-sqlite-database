@@ -189,22 +189,6 @@ class TestSQLiteDBSearchByValue(unittest.TestCase):
         self.assertEqual(results, [])
 
 
-class TestSQLiteDBLastSeen(unittest.TestCase):
-    def test_update_last_seen_never_moves_timestamp_backward(self):
-        db = make_db()
-        db.add_item(make_client(1, "key", last_seen=200.0))
-
-        self.assertTrue(db.update_last_seen("key", 100.0))
-        self.assertEqual(db.search_by_value("api_key", "key")[0].last_seen, 200.0)
-
-        self.assertTrue(db.update_last_seen("key", 300.0))
-        self.assertEqual(db.search_by_value("api_key", "key")[0].last_seen, 300.0)
-
-    def test_update_last_seen_returns_false_for_missing_key(self):
-        db = make_db()
-        self.assertFalse(db.update_last_seen("missing", 100.0))
-
-
 class TestSQLiteDBIter(unittest.TestCase):
     def test_iter_yields_all_rows(self):
         db = make_db()

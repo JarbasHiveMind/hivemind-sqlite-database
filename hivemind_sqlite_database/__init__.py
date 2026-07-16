@@ -215,26 +215,6 @@ class SQLiteDB(AbstractDB):
             LOG.error(f"Failed to add client to SQLite: {e}")
             return False
 
-    def update_last_seen(self, api_key: str, seen_at: float) -> bool:
-        """Atomically advance ``last_seen`` for the matching API key."""
-        try:
-            with self._write_lock, self.conn:
-                cursor = self.conn.execute(
-                    """
-                    UPDATE clients
-                    SET last_seen = CASE
-                        WHEN last_seen IS NULL OR last_seen < ? THEN ?
-                        ELSE last_seen
-                    END
-                    WHERE api_key = ?
-                    """,
-                    (seen_at, seen_at, api_key),
-                )
-            return cursor.rowcount > 0
-        except sqlite3.Error as e:
-            LOG.error(f"Failed to update last_seen in SQLite: {e}")
-            return False
-
     def search_by_value(self, key: str, val: Union[str, bool, int, float]) -> List[Client]:
         """
         Search for clients by a specific key-value pair in the SQLite database.
