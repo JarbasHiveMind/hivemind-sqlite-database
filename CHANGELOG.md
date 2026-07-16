@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0a5](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.0a5) (2026-07-16)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.0a4...0.4.0a5)
+
+**Merged pull requests:**
+
+- ci: release safely after fork merges [\#45](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/45) ([goldyfruit](https://github.com/goldyfruit))
+- fix: advance last\_seen atomically [\#44](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/44) ([goldyfruit](https://github.com/goldyfruit))
+
 ## [0.4.0a4](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.0a4) (2026-07-04)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.0a3...0.4.0a4)
@@ -51,10 +60,6 @@
 ## [0.3.0a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a2) (2026-05-18)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.3.0a1...0.3.0a2)
-
-**Closed issues:**
-
-- security: encrypted db [\#2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/issues/2)
 
 **Merged pull requests:**
 
