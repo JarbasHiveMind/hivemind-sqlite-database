@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0a6](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.0a6) (2026-07-16)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.0a5...0.4.0a6)
+
+**Merged pull requests:**
+
+- Revert unauthorized automated merges \(\#44, \#45\) [\#47](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/47) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.0a5](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.0a5) (2026-07-16)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.0a4...0.4.0a5)
@@ -60,6 +68,10 @@
 ## [0.3.0a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.3.0a2) (2026-05-18)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.3.0a1...0.3.0a2)
+
+**Closed issues:**
+
+- security: encrypted db [\#2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/issues/2)
 
 **Merged pull requests:**
 
