@@ -26,8 +26,8 @@ sqlite3 ~/.local/share/hivemind-core/clients.db \
   ".backup /backup/clients.db.$(date +%F)"
 ```
 
-This works even with a live `hivemind-core` process — the WAL-mode backup
-is internally consistent regardless of concurrent reads or writes.
+This works even with a live `hivemind-core` process. The WAL-mode backup
+stays internally consistent regardless of concurrent reads or writes.
 
 For a quick file copy, stop the HiveMind process first and then copy all
 three files:
@@ -129,4 +129,7 @@ Register it under `hivemind.database` in `pyproject.toml`:
 "my-db-plugin" = "my_package:MyDB"
 ```
 
-`hivemind-core` will discover it automatically once installed.
+`hivemind-core` discovers it automatically once installed.
+
+---
+[← Configuration](configuration.md) · [Home](../README.md)

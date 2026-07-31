@@ -60,9 +60,9 @@ deserialised with `json.loads` on read.
 
 ## Schema migration
 
-`SQLiteDB` tracks its on-disk schema version in `PRAGMA user_version` — a
-signed integer slot built into every SQLite file, reserved exactly for
-application-level versioning. No sibling files.
+`SQLiteDB` tracks its on-disk schema version in `PRAGMA user_version`, a
+signed integer slot built into every SQLite file and reserved for
+application-level versioning. There are no sibling files.
 
 On every `__post_init__`, `_maybe_migrate()` reads `user_version` and
 compares it to `AbstractDB.SCHEMA_VERSION` (defaults to `1` if the
@@ -76,8 +76,8 @@ versa.
 For each row:
 
 - `intent_blacklist` and `skill_blacklist` column values are folded into
-  the row's `metadata` JSON dict via `setdefault` — explicit `metadata`
-  values are never clobbered.
+  the row's `metadata` JSON dict via `setdefault`. Explicit `metadata`
+  values are never overwritten.
 - `message_blacklist` is purged outright (top-level column and any
   pre-existing `metadata["message_blacklist"]`).
 - All three legacy columns are NULLed.
@@ -91,12 +91,12 @@ The operation is idempotent: if a row has NULL legacy columns or
 with a `threading.Lock` (`_write_lock`). All `INSERT`, `UPDATE`, and
 schema mutations acquire the lock before entering the `with self.conn`
 transaction context. Reads (`SELECT`, `PRAGMA table_info`) do not acquire
-the lock — SQLite's WAL mode allows concurrent readers.
+the lock. SQLite's WAL mode allows concurrent readers.
 
 For multi-process concurrency (e.g. two `hivemind-core` processes on the
 same file), WAL mode provides safe concurrent reads and SQLite's built-in
 writer-lock serialises writes. However, `hivemind-core` does not design for
-multi-process writes to the same DB — use Redis if you need that.
+multi-process writes to the same DB. Use Redis if you need that.
 
 ## Encryption (SQLCipher)
 
@@ -104,8 +104,8 @@ When `password` is a non-empty string, `SQLiteDB` opens the file via
 `sqlcipher3` instead of the standard `sqlite3` module and issues
 `PRAGMA key='<password>'` immediately after opening the connection.
 
-The encryption is transparent to all methods — `add_item`, `search_by_value`,
-and `__iter__` work identically whether the file is encrypted or not.
+The encryption is transparent to all methods. `add_item`, `search_by_value`,
+and `__iter__` work the same whether the file is encrypted or not.
 
 An encrypted file is **not** a standard SQLite file. You cannot open it with
 the `sqlite3` CLI, DB Browser for SQLite, or any other tool without the key.
@@ -144,3 +144,6 @@ Register it under the `hivemind.database` entry-point group in
 ```
 
 `DatabaseFactory.create("my-db-plugin")` then discovers and instantiates it.
+
+---
+[Home](../README.md) · [Configuration →](configuration.md)
