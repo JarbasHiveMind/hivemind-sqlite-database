@@ -38,7 +38,7 @@ With the defaults the full path resolves to:
 ~/.local/share/hivemind-core/clients.db
 ```
 
-The directory is created on first open — no manual `mkdir` needed.
+The directory is created on first open. No manual `mkdir` is needed.
 
 ### Relocating the database
 
@@ -77,7 +77,7 @@ pip install "hivemind-sqlite-database[cipher]"
 
 The password maps directly to SQLCipher's `PRAGMA key`. SQLCipher derives
 an AES-256-CBC key from the passphrase via PBKDF2. Any non-empty string is
-valid as a passphrase — SQLCipher stretches it internally.
+valid as a passphrase. SQLCipher stretches it internally.
 
 **Constraints:**
 
@@ -95,7 +95,10 @@ the same file simultaneously.
 
 ## Schema version
 
-`SQLiteDB` tracks the schema version in `PRAGMA user_version` — a built-in
-SQLite slot, no sibling files. The current target version is `2`. See
-[Architecture → Schema migration](architecture.md#schema-migration) for
+`SQLiteDB` tracks the schema version in `PRAGMA user_version`, a built-in
+SQLite slot with no sibling files. The current target version is `2`. See
+[Architecture: Schema migration](architecture.md#schema-migration) for
 what the migration does and how it runs.
+
+---
+[← Architecture](architecture.md) · [Home](../README.md) · [Operations →](operations.md)

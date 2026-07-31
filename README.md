@@ -7,7 +7,7 @@ Implements the [`hivemind-plugin-manager`](https://github.com/JarbasHiveMind/hiv
 encryption is enabled). Client records (API keys, crypto keys, access-control lists) are stored in
 a local `.db` file with WAL journal mode for safe multi-reader, single-writer access.
 
-**This is the default database backend for fresh hivemind-core installations.**
+This is the default database backend for fresh hivemind-core installations.
 
 ## Where it fits
 
@@ -99,13 +99,13 @@ typically `~/.local/share/hivemind-core/clients.db`.
 ## Schema migration
 
 On first open after an upgrade, `SQLiteDB` runs an automatic schema migration.
-Version tracking uses SQLite's built-in `PRAGMA user_version` — no sibling files.
+Version tracking uses SQLite's built-in `PRAGMA user_version`. There are no sibling files.
 
 The v1→v2 migration folds legacy `intent_blacklist` / `skill_blacklist` column
 data into each row's `metadata` JSON field and NULLs the legacy columns.
 `message_blacklist` is purged outright.
 
-The migration is idempotent, crash-safe, and transactional — the row rewrites
+The migration is idempotent and crash-safe. The row rewrites
 and the `user_version` bump happen in one transaction.
 
 To migrate an existing installation to this backend, use hivemind-core's built-in
@@ -117,6 +117,6 @@ hivemind-core migrate-db
 
 ## Docs
 
-- [docs/architecture.md](docs/architecture.md) — internals, WAL mode, schema, migration
-- [docs/configuration.md](docs/configuration.md) — full configuration reference
-- [docs/operations.md](docs/operations.md) — file locations, backup, encryption, authoring a plugin
+- [docs/architecture.md](docs/architecture.md): internals, WAL mode, schema, migration
+- [docs/configuration.md](docs/configuration.md): full configuration reference
+- [docs/operations.md](docs/operations.md): file locations, backup, encryption, authoring a plugin
