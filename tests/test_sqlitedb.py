@@ -783,6 +783,26 @@ class TestSQLiteDBGetClientByID(unittest.TestCase):
                 self.assertEqual(db.refresh(1).allowed_types, ["y"])
 
 
+class TestSQLiteDBApiKeyIndex(unittest.TestCase):
+    def test_index_exists_after_init(self):
+        db = make_db()
+        row = db.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' "
+            "AND name='idx_clients_api_key'"
+        ).fetchone()
+        self.assertIsNotNone(row)
+
+    def test_api_key_lookup_uses_index(self):
+        db = make_db()
+        plan = db.conn.execute(
+            "EXPLAIN QUERY PLAN SELECT * FROM clients WHERE api_key = ?",
+            ("k1",),
+        ).fetchall()
+        detail = " ".join(row["detail"] for row in plan)
+        self.assertIn("SEARCH", detail)
+        self.assertNotIn("SCAN", detail)
+
+
 class TestSQLiteDBSchemaV2RoundTrip(unittest.TestCase):
     """v2 schema: allowed_types + skill/intent blacklists (in metadata) survive
     add→search and add→refresh cycles without loss or mutation."""
