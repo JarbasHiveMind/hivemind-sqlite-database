@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.2a1) (2026-08-03)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.1a1...0.4.2a1)
+
+**Merged pull requests:**
+
+- fix: give each thread its own SQLite connection [\#54](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/54) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.1a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.0a7...0.4.1a1)
