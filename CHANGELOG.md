@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.1a1) (2026-08-03)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.0a7...0.4.1a1)
+
+**Merged pull requests:**
+
+- fix: index api\_key, queried on every client connect [\#52](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/52) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.0a7](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.0a7) (2026-07-31)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.0a6...0.4.0a7)
