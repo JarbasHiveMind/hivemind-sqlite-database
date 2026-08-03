@@ -92,6 +92,11 @@ class SQLiteDB(AbstractDB):
                     metadata TEXT
                 )
             """)
+            # api_key is looked up on every client connection admission
+            # (get_client_by_api_key), so a full table scan there is hot.
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_clients_api_key ON clients(api_key)"
+            )
             columns = {
                 row["name"]
                 for row in self.conn.execute("PRAGMA table_info(clients)").fetchall()
