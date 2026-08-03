@@ -883,3 +883,66 @@ class TestSQLiteDBSchemaV2RoundTrip(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSQLiteDBThreadSafety(unittest.TestCase):
+    """A real file-backed DB hammered from many threads at once.
+
+    Reproduces the failure seen under the threaded (webrockets) network
+    backend: concurrent reads and writes through ONE shared connection
+    raise ``bad parameter or other API misuse`` and write rows with
+    corrupted bindings (``NOT NULL constraint failed: clients.api_key``),
+    because one thread's implicit COMMIT ends another thread's
+    transaction.
+    """
+
+    def test_concurrent_read_write_is_clean(self):
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("hivemind_sqlite_database.xdg_data_home", return_value=tmp):
+                db = SQLiteDB()
+                n = 60
+                for i in range(n):
+                    self.assertTrue(db.add_item(make_client(i, f"key-{i}")))
+
+                errors = []
+                misses = []
+                barrier = threading.Barrier(24)
+
+                def reader(i):
+                    barrier.wait()
+                    try:
+                        for _ in range(40):
+                            got = db.search_by_value("api_key", f"key-{i % n}")
+                            if len(got) != 1:
+                                misses.append((i, len(got)))
+                    except Exception as e:  # noqa: BLE001
+                        errors.append(repr(e))
+
+                def writer(i):
+                    barrier.wait()
+                    try:
+                        for k in range(40):
+                            if not db.add_item(
+                                make_client(i % n, f"key-{i % n}",
+                                            name=f"w{k}")):
+                                errors.append(f"add_item returned False ({i},{k})")
+                    except Exception as e:  # noqa: BLE001
+                        errors.append(repr(e))
+
+                threads = [threading.Thread(target=reader, args=(i,))
+                           for i in range(16)]
+                threads += [threading.Thread(target=writer, args=(i,))
+                            for i in range(8)]
+                for t in threads:
+                    t.start()
+                for t in threads:
+                    t.join(timeout=120)
+
+                self.assertEqual(errors, [])
+                self.assertEqual(misses, [])
+                # every api_key still resolves to exactly one live row
+                for i in range(n):
+                    self.assertEqual(len(db.search_by_value("api_key", f"key-{i}")), 1)

@@ -2,7 +2,7 @@ import json
 import os.path
 import sqlite3
 import threading
-from typing import List, Optional, Union, Iterable
+from typing import ClassVar, List, Optional, Union, Iterable
 
 from ovos_utils.log import LOG
 from ovos_utils.xdg_utils import xdg_data_home
@@ -27,6 +27,10 @@ class SQLiteDB(AbstractDB):
     subfolder: str = "hivemind-core"
     password: Optional[str] = None
 
+    # How long SQLite waits for a file lock held by another connection
+    # before giving up with SQLITE_BUSY, in milliseconds.
+    BUSY_TIMEOUT_MS: ClassVar[int] = 10000
+
     def __post_init__(self):
         """
         Initialize the SQLiteDB connection.
@@ -38,14 +42,31 @@ class SQLiteDB(AbstractDB):
 
         When *password* is ``None`` (default) the standard ``sqlite3`` module
         is used and the database file is unencrypted.
-        """
-        db_path = os.path.join(xdg_data_home(), self.subfolder, self.name + ".db")
-        LOG.debug(f"sqlite database path: {db_path}")
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
+        Each thread gets its own connection (see :attr:`conn`). A single
+        shared connection is not usable from several threads at once: the
+        transaction state belongs to the connection, so one thread's
+        ``COMMIT`` ends another thread's transaction and resets its
+        in-flight statements. Under a threaded network backend that shows
+        up as ``sqlite3.ProgrammingError: bad parameter or other API
+        misuse`` and as writes that land with corrupted bindings.
+        """
+        self._db_path = os.path.join(xdg_data_home(), self.subfolder, self.name + ".db")
+        LOG.debug(f"sqlite database path: {self._db_path}")
+        os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
+
+        if self.password is not None and self.password == "":
+            raise ValueError("password must be non-empty when encryption is enabled")
+
+        self._write_lock = threading.Lock()
+        # opening the first connection also applies the WAL pragma
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self._initialize_database()
+        self._maybe_migrate()
+
+    def _connect(self):
+        """Open one new connection to the backing file."""
         if self.password is not None:
-            if self.password == "":
-                raise ValueError("password must be non-empty when encryption is enabled")
             try:
                 import sqlcipher3 as _sqlcipher
             except ImportError:
@@ -54,18 +75,56 @@ class SQLiteDB(AbstractDB):
                     "Install the system library (e.g. 'apt install libsqlcipher-dev') "
                     "then: pip install hivemind-sqlite-database[cipher]"
                 )
-            self.conn = _sqlcipher.connect(db_path, check_same_thread=False)
-            self.conn.row_factory = _sqlcipher.Row
+            conn = _sqlcipher.connect(self._db_path, check_same_thread=False)
+            conn.row_factory = _sqlcipher.Row
             escaped_password = self.password.replace("'", "''")
-            self.conn.execute(f"PRAGMA key='{escaped_password}'")
+            conn.execute(f"PRAGMA key='{escaped_password}'")
         else:
-            self.conn = sqlite3.connect(db_path, check_same_thread=False)
-            self.conn.row_factory = sqlite3.Row
+            conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+        conn.execute(f"PRAGMA busy_timeout={int(self.BUSY_TIMEOUT_MS)}")
+        return conn
 
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self._write_lock = threading.Lock()
-        self._initialize_database()
-        self._maybe_migrate()
+    @property
+    def conn(self):
+        """The calling thread's own connection, opened on first use.
+
+        Connections are cheap and WAL lets many readers run beside one
+        writer, so a per-thread connection costs a file handle and buys
+        real thread safety. ``_write_lock`` still serialises writers
+        in-process so they do not fight over the file lock.
+        """
+        local = self._thread_state()
+        conn = getattr(local, "conn", None)
+        if conn is None:
+            conn = local.conn = self._connect()
+        return conn
+
+    @conn.setter
+    def conn(self, value) -> None:
+        """Adopt an already-open connection for the calling thread.
+
+        Only the calling thread sees it; other threads still open their
+        own. Tests use this to inject an in-memory database.
+        """
+        self._thread_state().conn = value
+
+    def _thread_state(self) -> threading.local:
+        local = self.__dict__.get("_local")
+        if local is None:
+            local = self.__dict__["_local"] = threading.local()
+        return local
+
+    def close(self) -> None:
+        """Close the calling thread's connection, if it has one."""
+        local = self._thread_state()
+        conn = getattr(local, "conn", None)
+        if conn is not None:
+            local.conn = None
+            try:
+                conn.close()
+            except sqlite3.Error as e:
+                LOG.error(f"Failed to close SQLite connection: {e}")
 
     def _initialize_database(self):
         """Initialize the database schema."""
@@ -235,10 +294,12 @@ class SQLiteDB(AbstractDB):
             LOG.error(f"Invalid search key: {key!r}")
             return []
         try:
-            with self.conn:
-                cur = self.conn.execute(f"SELECT * FROM clients WHERE {key} = ?", (val,))
-                rows = cur.fetchall()
-                return [self._row_to_client(row) for row in rows]
+            # deliberately NOT wrapped in ``with self.conn`` — that context
+            # manager commits the connection's transaction on exit, which a
+            # read has no business doing.
+            cur = self.conn.execute(f"SELECT * FROM clients WHERE {key} = ?", (val,))
+            rows = cur.fetchall()
+            return [self._row_to_client(row) for row in rows]
         except sqlite3.Error as e:
             LOG.error(f"Failed to search clients in SQLite: {e}")
             return []
