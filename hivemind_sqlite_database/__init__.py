@@ -26,6 +26,10 @@ class SQLiteDB(AbstractDB):
     name: str = "clients"
     subfolder: str = "hivemind-core"
     password: Optional[str] = None
+    # Overrides the computed xdg path entirely, e.g. ":memory:" for tests.
+    # Every thread's connection is opened against this same target, so
+    # nothing ever silently falls back to the real client database.
+    db_path: Optional[str] = None
 
     # How long SQLite waits for a file lock held by another connection
     # before giving up with SQLITE_BUSY, in milliseconds.
@@ -51,9 +55,12 @@ class SQLiteDB(AbstractDB):
         up as ``sqlite3.ProgrammingError: bad parameter or other API
         misuse`` and as writes that land with corrupted bindings.
         """
-        self._db_path = os.path.join(xdg_data_home(), self.subfolder, self.name + ".db")
+        if self.db_path is not None:
+            self._db_path = self.db_path
+        else:
+            self._db_path = os.path.join(xdg_data_home(), self.subfolder, self.name + ".db")
+            os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
         LOG.debug(f"sqlite database path: {self._db_path}")
-        os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
 
         if self.password is not None and self.password == "":
             raise ValueError("password must be non-empty when encryption is enabled")
@@ -102,10 +109,15 @@ class SQLiteDB(AbstractDB):
 
     @conn.setter
     def conn(self, value) -> None:
-        """Adopt an already-open connection for the calling thread.
+        """Adopt an already-open connection for the calling thread only.
 
-        Only the calling thread sees it; other threads still open their
-        own. Tests use this to inject an in-memory database.
+        Any other thread that later touches ``.conn`` still opens its own
+        connection against ``self._db_path`` — if that is the real client
+        database, that thread silently writes to it. Pass ``db_path``
+        (e.g. ``":memory:"``) to the constructor instead so every thread,
+        present and future, agrees on the same target; this setter exists
+        only for single-threaded call sites that already hold a connection
+        they want reused.
         """
         self._thread_state().conn = value
 

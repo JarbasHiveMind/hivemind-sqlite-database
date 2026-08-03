@@ -422,6 +422,36 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.intent_blacklist, ["a:b"])
 
 
+class TestSQLiteDBPathOverride(unittest.TestCase):
+    """A worker thread must never fall back to the real client database
+    just because the test only overrode `.conn` on the main thread."""
+
+    def test_db_path_override_keeps_worker_threads_off_disk(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch(
+                "hivemind_sqlite_database.xdg_data_home", return_value=tmpdir
+            ):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core",
+                              db_path=":memory:")
+
+                errors = []
+
+                def worker():
+                    try:
+                        db.conn.execute("SELECT 1").fetchone()
+                    except Exception as e:  # noqa: BLE001
+                        errors.append(e)
+
+                t = threading.Thread(target=worker)
+                t.start()
+                t.join()
+
+            self.assertEqual(errors, [])
+            real_db_file = os.path.join(tmpdir, "hivemind-core", "clients.db")
+            self.assertFalse(os.path.exists(real_db_file))
+
+
 class TestSQLiteDBCommit(unittest.TestCase):
     def test_commit_returns_true(self):
         db = make_db()
