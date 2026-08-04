@@ -29,6 +29,9 @@ class SQLiteDB(AbstractDB):
     # Overrides the computed xdg path entirely, e.g. ":memory:" for tests.
     # Every thread's connection is opened against this same target, so
     # nothing ever silently falls back to the real client database.
+    # ":memory:" becomes a named shared in-memory database, one per
+    # SQLiteDB instance, so worker threads see the same tables as the
+    # thread that created them.
     db_path: Optional[str] = None
 
     # How long SQLite waits for a file lock held by another connection
@@ -57,9 +60,19 @@ class SQLiteDB(AbstractDB):
         """
         if self.db_path is not None:
             self._db_path = self.db_path
+            if self._db_path == ":memory:":
+                # A plain ":memory:" database belongs to the one connection
+                # that opened it, so the next thread would open a second,
+                # empty database and find no tables. Give it a name and a
+                # shared cache instead. The name carries the instance id, so
+                # two in-memory databases in one process stay independent.
+                self._db_path = f"file:hivemind-{id(self):x}?mode=memory&cache=shared"
         else:
             self._db_path = os.path.join(xdg_data_home(), self.subfolder, self.name + ".db")
-            os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
+        self._is_uri = self._db_path.startswith("file:")
+        parent = os.path.dirname(self._db_path)
+        if parent and not self._is_uri:
+            os.makedirs(parent, exist_ok=True)
         LOG.debug(f"sqlite database path: {self._db_path}")
 
         if self.password is not None and self.password == "":
@@ -68,6 +81,11 @@ class SQLiteDB(AbstractDB):
         self._write_lock = threading.Lock()
         # opening the first connection also applies the WAL pragma
         self.conn.execute("PRAGMA journal_mode=WAL")
+        if "mode=memory" in self._db_path:
+            # A shared in-memory database lives only while a connection to
+            # it is open. Hold one for the lifetime of this object so the
+            # tables survive a thread closing its own connection.
+            self._keepalive = self._connect()
         self._initialize_database()
         self._maybe_migrate()
 
@@ -82,12 +100,14 @@ class SQLiteDB(AbstractDB):
                     "Install the system library (e.g. 'apt install libsqlcipher-dev') "
                     "then: pip install hivemind-sqlite-database[cipher]"
                 )
-            conn = _sqlcipher.connect(self._db_path, check_same_thread=False)
+            conn = _sqlcipher.connect(self._db_path, check_same_thread=False,
+                                      uri=self._is_uri)
             conn.row_factory = _sqlcipher.Row
             escaped_password = self.password.replace("'", "''")
             conn.execute(f"PRAGMA key='{escaped_password}'")
         else:
-            conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            conn = sqlite3.connect(self._db_path, check_same_thread=False,
+                                   uri=self._is_uri)
             conn.row_factory = sqlite3.Row
         conn.execute(f"PRAGMA busy_timeout={int(self.BUSY_TIMEOUT_MS)}")
         return conn
