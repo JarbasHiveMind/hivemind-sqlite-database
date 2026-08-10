@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.3a3](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a3) (2026-08-10)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a2...0.4.3a3)
+
 ## [0.4.3a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a2) (2026-08-10)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a1...0.4.3a2)
