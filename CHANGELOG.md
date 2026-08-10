@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a1) (2026-08-10)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.2a1...0.4.3a1)
+
+**Merged pull requests:**
+
+- fix: worker thread can silently write to the real client db when a test only overrides .conn on the main thread [\#56](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/56) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.2a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.2a1) (2026-08-03)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.1a1...0.4.2a1)
