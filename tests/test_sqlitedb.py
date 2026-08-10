@@ -422,6 +422,56 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.intent_blacklist, ["a:b"])
 
 
+class TestSQLiteDBPathOverride(unittest.TestCase):
+    """A worker thread must never fall back to the real client database
+    just because the test only overrode `.conn` on the main thread."""
+
+    def test_db_path_override_keeps_worker_threads_off_disk(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch(
+                "hivemind_sqlite_database.xdg_data_home", return_value=tmpdir
+            ):
+                db = SQLiteDB(name="clients", subfolder="hivemind-core",
+                              db_path=":memory:")
+
+                # Read a row written on this thread. "SELECT 1" would answer
+                # the same against a private, empty database and so would
+                # never notice a per-thread database.
+                db.add_item(Client(client_id=1, api_key="key",
+                                   name="kitchen"))
+
+                errors = []
+                seen = []
+
+                def worker():
+                    try:
+                        seen.extend(db.search_by_value("name", "kitchen"))
+                    except Exception as e:  # noqa: BLE001
+                        errors.append(e)
+
+                t = threading.Thread(target=worker)
+                t.start()
+                t.join()
+
+            self.assertEqual(errors, [])
+            self.assertEqual([c.client_id for c in seen], [1])
+            real_db_file = os.path.join(tmpdir, "hivemind-core", "clients.db")
+            self.assertFalse(os.path.exists(real_db_file))
+
+    def test_two_in_memory_databases_stay_independent(self):
+        first = SQLiteDB(db_path=":memory:")
+        second = SQLiteDB(db_path=":memory:")
+        first.add_item(Client(client_id=1, api_key="key", name="kitchen"))
+        self.assertEqual(second.search_by_value("name", "kitchen"), [])
+
+    def test_explicit_db_path_creates_missing_directories(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "newdir", "clients.db")
+            SQLiteDB(db_path=path)
+            self.assertTrue(os.path.isfile(path))
+
+
 class TestSQLiteDBCommit(unittest.TestCase):
     def test_commit_returns_true(self):
         db = make_db()
