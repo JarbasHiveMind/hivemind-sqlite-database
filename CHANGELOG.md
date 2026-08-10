@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3a2](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a2) (2026-08-10)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a1...0.4.3a2)
+
+**Merged pull requests:**
+
+- chore\(ci\): drop the broken, redundant Dependabot config [\#58](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/58) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.3a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a1) (2026-08-10)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.2a1...0.4.3a1)
