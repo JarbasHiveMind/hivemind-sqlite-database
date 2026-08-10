@@ -7,6 +7,8 @@
 **Merged pull requests:**
 
 - chore\(ci\): drop the broken, redundant Dependabot config [\#58](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/58) ([JarbasAl](https://github.com/JarbasAl))
+- Update actions/setup-python action to v7 [\#49](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/49) ([renovate[bot]](https://github.com/apps/renovate))
+- Update dependency python to 3.14 [\#8](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/8) ([renovate[bot]](https://github.com/apps/renovate))
 
 ## [0.4.3a1](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a1) (2026-08-10)
 
