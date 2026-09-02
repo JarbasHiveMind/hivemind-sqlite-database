@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3a6](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a6) (2026-09-02)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a5...0.4.3a6)
+
+**Merged pull requests:**
+
+- test: fix e2e cache-invalidation helper to call invalidate\_user [\#64](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/64) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.3a5](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a5) (2026-08-15)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a4...0.4.3a5)
