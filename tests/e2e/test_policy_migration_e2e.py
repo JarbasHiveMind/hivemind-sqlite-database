@@ -104,8 +104,8 @@ def _reset_resolution_cache(hm_protocol):
         reg = getattr(hm_protocol, attr, None)
         if isinstance(reg, dict):
             for conn in reg.values():
-                if hasattr(conn, "reset_user"):
-                    conn.reset_user()
+                if hasattr(conn, "invalidate_user"):
+                    conn.invalidate_user()
 
 
 def _seed_legacy_blacklist(db, api_key: str, skills):
