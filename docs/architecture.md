@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS clients (
     skill_blacklist   TEXT,   -- legacy column, NULLed after v2 migration
     message_blacklist TEXT,   -- legacy column, NULLed after v2 migration
     allowed_types  TEXT,
-    crypto_key     VARCHAR(16),
     password       TEXT,
     can_broadcast  BOOLEAN DEFAULT TRUE,
     can_escalate   BOOLEAN DEFAULT TRUE,
