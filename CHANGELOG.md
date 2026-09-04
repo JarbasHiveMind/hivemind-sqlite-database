@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3a7](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a7) (2026-09-04)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a6...0.4.3a7)
+
+**Merged pull requests:**
+
+- refactor: drop the dead crypto\_key column/field [\#66](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/66) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.3a6](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a6) (2026-09-02)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a5...0.4.3a6)
