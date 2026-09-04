@@ -74,9 +74,13 @@ class _HivescopeDBAdapter:
                    intent_blacklist=None, skill_blacklist=None,
                    message_blacklist=None, can_escalate=True,
                    can_propagate=True, can_broadcast=True):
+        # hivescope's MasterNode.register_satellite still passes
+        # crypto_key through (v3-Noise-only removal, later phase); this
+        # adapter accepts and drops it since the real ClientDatabase no
+        # longer takes it.
         return self._cdb.add_client(
             name=name, key=key, admin=admin, allowed_types=allowed_types,
-            crypto_key=crypto_key, password=password, metadata=metadata,
+            password=password, metadata=metadata,
             intent_blacklist=intent_blacklist, skill_blacklist=skill_blacklist,
             message_blacklist=message_blacklist,
         )

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 _VALID_COLUMNS = frozenset({
     "client_id", "api_key", "name", "description", "is_admin",
     "last_seen", "intent_blacklist", "skill_blacklist", "message_blacklist",
-    "allowed_types", "crypto_key", "password",
+    "allowed_types", "password",
     "can_broadcast", "can_escalate", "can_propagate", "metadata",
 })
 
@@ -175,7 +175,6 @@ class SQLiteDB(AbstractDB):
                     skill_blacklist TEXT,
                     message_blacklist TEXT,
                     allowed_types TEXT,
-                    crypto_key VARCHAR(16),
                     password TEXT,
                     can_broadcast BOOLEAN DEFAULT TRUE,
                     can_escalate BOOLEAN DEFAULT TRUE,
@@ -287,9 +286,9 @@ class SQLiteDB(AbstractDB):
                     INSERT OR REPLACE INTO clients (
                         client_id, api_key, name, description, is_admin,
                         last_seen, intent_blacklist, skill_blacklist,
-                        message_blacklist, allowed_types, crypto_key, password,
+                        message_blacklist, allowed_types, password,
                         can_broadcast, can_escalate, can_propagate, metadata
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     client.client_id, client.api_key, client.name, client.description,
                     client.is_admin, client.last_seen,
@@ -302,7 +301,7 @@ class SQLiteDB(AbstractDB):
                     None,
                     None,
                     json.dumps(client.allowed_types),
-                    client.crypto_key, client.password,
+                    client.password,
                     client.can_broadcast, client.can_escalate, client.can_propagate,
                     metadata_json,
                 ))
@@ -420,7 +419,6 @@ class SQLiteDB(AbstractDB):
             is_admin=bool(row["is_admin"]),
             last_seen=row["last_seen"],
             allowed_types=json.loads(row["allowed_types"] or "[]"),
-            crypto_key=row["crypto_key"],
             password=row["password"],
             can_broadcast=bool(row["can_broadcast"]),
             can_escalate=bool(row["can_escalate"]),

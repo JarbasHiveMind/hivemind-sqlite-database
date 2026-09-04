@@ -405,7 +405,9 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.description, "a test")
         self.assertFalse(r.is_admin)
         self.assertEqual(r.last_seen, 1234567890.0)
-        self.assertEqual(r.crypto_key, "1234567890123456")
+        # crypto_key is v3-Noise-only dead weight: no longer persisted or
+        # read back, so the field falls back to the Client default.
+        self.assertIsNone(r.crypto_key)
         self.assertEqual(r.password, "secret")
         self.assertFalse(r.can_escalate)
         # After SCHEMA_VERSION=2: legacy skill/intent kwargs auto-migrate
