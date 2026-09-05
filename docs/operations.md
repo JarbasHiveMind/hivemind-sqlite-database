@@ -90,7 +90,7 @@ from hivemind_plugin_manager import DatabaseFactory
 
 src = SQLiteDB()
 dst = DatabaseFactory.create("hivemind-redis-db-plugin",
-                             config={"host": "127.0.0.1", "port": 6379})
+                             host="127.0.0.1", port=6379)
 
 for client in src:
     dst.add_item(client)
