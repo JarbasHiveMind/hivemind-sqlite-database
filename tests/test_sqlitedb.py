@@ -389,7 +389,6 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
             intent_blacklist=["a:b"],
             skill_blacklist=["c:d"],
             allowed_types=["recognizer_loop:utterance"],
-            crypto_key="1234567890123456",
             password="secret",
             can_broadcast=True,
             can_escalate=False,
@@ -405,9 +404,6 @@ class TestSQLiteDBRoundTrip(unittest.TestCase):
         self.assertEqual(r.description, "a test")
         self.assertFalse(r.is_admin)
         self.assertEqual(r.last_seen, 1234567890.0)
-        # crypto_key is v3-Noise-only dead weight: no longer persisted or
-        # read back, so the field falls back to the Client default.
-        self.assertIsNone(r.crypto_key)
         self.assertEqual(r.password, "secret")
         self.assertFalse(r.can_escalate)
         # After SCHEMA_VERSION=2: legacy skill/intent kwargs auto-migrate
