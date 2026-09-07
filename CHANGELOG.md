@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3a9](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a9) (2026-09-07)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a8...0.4.3a9)
+
+**Merged pull requests:**
+
+- docs: fix DatabaseFactory.create\(\) call signature [\#68](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/68) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.4.3a8](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a8) (2026-09-07)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a7...0.4.3a8)
