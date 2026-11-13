@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3a11](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a11) (2026-11-13)
+
+[Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a10...0.4.3a11)
+
+**Merged pull requests:**
+
+- Update dependency python to 3.15 [\#73](https://github.com/JarbasHiveMind/hivemind-sqlite-database/pull/73) ([renovate[bot]](https://github.com/apps/renovate))
+
 ## [0.4.3a10](https://github.com/JarbasHiveMind/hivemind-sqlite-database/tree/0.4.3a10) (2026-11-13)
 
 [Full Changelog](https://github.com/JarbasHiveMind/hivemind-sqlite-database/compare/0.4.3a9...0.4.3a10)
